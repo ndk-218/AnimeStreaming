@@ -1,0 +1,23 @@
+{
+  "watch": [
+    "src"
+  ],
+  "ext": "ts,json,js",
+  "ignore": [
+    "src/**/*.spec.ts",
+    "src/**/*.test.ts",
+    "node_modules/",
+    "dist/",
+    "logs/",
+    "uploads/"
+  ],
+  "exec": "ts-node --transpile-only src/server.ts",
+  "env": {
+    "NODE_ENV": "development",
+    "PORT": "5000"
+  },
+  "delay": 1000,
+  "verbose": false,
+  "colours": true,
+  "legacyWatch": false
+}
