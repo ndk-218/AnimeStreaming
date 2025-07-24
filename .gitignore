@@ -1,0 +1,19 @@
+# Video files - KHÔNG push lên GitHub
+backend/uploads/
+*.mp4
+*.avi
+*.m3u8
+*.ts
+
+# Environment variables - Có API keys, passwords
+.env
+backend/.env
+
+# Dependencies - Folder rất lớn
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Build outputs - Generated files
+frontend/dist/
+backend/dist/
