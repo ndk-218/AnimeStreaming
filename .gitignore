@@ -1,5 +1,5 @@
 # =================================================================
-# HLS VIDEO STREAMING PLATFORM - .gitignore
+# ANIME STREAMING PLATFORM - .gitignore
 # =================================================================
 
 # ===== VIDEO FILES & UPLOADS (QUAN TRỌNG!) =====
@@ -69,7 +69,8 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Package manager lock files (tuỳ chọn - recommend keep)
+# Package manager lock files - ALLOW these for stability
+# Commented out to keep them in repo
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
@@ -81,7 +82,7 @@ frontend/build/
 dist/
 build/
 
-# Backend compiled
+# Backend compiled TypeScript (but keep source!)
 backend/dist/
 backend/build/
 
@@ -231,8 +232,8 @@ temp/
 .tmp/
 .temp/
 
-# Lock files
-*.lock
+# Lock files (nhưng giữ package-lock.json)
+# *.lock  # Commented out vì cần package-lock.json
 
 # ===== DOCKER =====
 # Docker volumes
@@ -287,7 +288,6 @@ dump.rdb
 *.p12
 *.der
 *.csr
-*.orig
 
 # SSH keys
 id_rsa
@@ -302,3 +302,13 @@ id_ed25519
 # OAuth tokens
 .oauth/
 auth.json
+
+# ===== EXPLICITLY ALLOW BACKEND SOURCE =====
+# Make sure these are NOT ignored
+!backend/src/
+!backend/package.json
+!backend/package-lock.json
+!backend/tsconfig.json
+!backend/nodemon.json
+!backend/.env.example
+!backend/README.md
