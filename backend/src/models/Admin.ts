@@ -76,7 +76,7 @@ AdminSchema.index({ isActive: 1 });
 
 // ===== VIRTUAL FIELDS =====
 AdminSchema.virtual('isLocked').get(function() {
-  return !!(this.lockUntil && this.lockUntil > Date.now());
+  return !!(this.lockUntil && this.lockUntil.getTime() > Date.now());
 });
 
 // ===== METHODS =====

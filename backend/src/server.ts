@@ -6,190 +6,177 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
+import path from 'path';
+import fs from 'fs-extra';
+import dotenv from 'dotenv';
+
+// Error handling
+import 'express-async-errors';
+
+// Database
+import { connectDatabase, DatabaseUtils } from './models';
+
+// Routes (will create these)
+// import seriesRoutes from './routes/series';
+// import seasonRoutes from './routes/seasons';
+// import episodeRoutes from './routes/episodes';
+// import adminRoutes from './routes/admin';
+// import streamingRoutes from './routes/streaming';
+
+// Middleware
+// import { errorHandler } from './middleware/errorHandler';
+// import { notFound } from './middleware/notFound';
+
+// Services
+// import { VideoProcessingService } from './services/videoProcessing';
+// import { SocketService } from './services/socketService';
 
 // Load environment variables
 dotenv.config();
+
+// Validate required environment variables
+const requiredEnvVars = [
+  'PORT',
+  'MONGODB_URI',
+  'JWT_SECRET',
+  'REDIS_URL'
+];
+
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`❌ Missing required environment variable: ${envVar}`);
+    process.exit(1);
+  }
+}
 
 // Create Express app
 const app = express();
 const server = createServer(app);
 
-// Socket.IO setup for real-time video processing updates
+// Create Socket.IO instance
 const io = new SocketIOServer(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
     methods: ["GET", "POST"],
     credentials: true
   }
 });
 
-// Environment variables with defaults
-const PORT = process.env.PORT || 5000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+// ===== MIDDLEWARE SETUP =====
 
-// ===== MIDDLEWARE STACK =====
-
-// Security middleware
+// Security
 app.use(helmet({
-  crossOriginEmbedderPolicy: false, // Allow video streaming
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      mediaSrc: ["'self'", "blob:", "data:"], // Allow video/audio
-      connectSrc: ["'self'", "ws:", "wss:"], // Allow WebSocket
-    },
+      scriptSrc: ["'self'"],
+      mediaSrc: ["'self'", "blob:", "data:"],
+      connectSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "blob:"]
+    }
   },
+  crossOriginEmbedderPolicy: false // Allow video streaming
 }));
 
-// CORS configuration for frontend
+// CORS
 app.use(cors({
-  origin: CORS_ORIGIN,
+  origin: process.env.FRONTEND_URL || "http://localhost:5173",
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Range']
 }));
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: NODE_ENV === 'production' ? 100 : 1000, // requests per window
+  max: 1000, // limit each IP to 1000 requests per windowMs
   message: {
-    error: 'Too many requests, please try again later',
+    error: 'Too many requests from this IP, please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
 });
-app.use('/api/', limiter);
+app.use(limiter);
 
-// Upload specific rate limit (more restrictive)
-const uploadLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 5, // 5 uploads per minute
-  message: {
-    error: 'Upload limit exceeded, please wait before uploading again',
-  },
-});
+// Compression
+app.use(compression());
 
-// Body parsing middleware
+// Logging
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+// Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Compression middleware
-app.use(compression());
+// ===== STATIC FILE SERVING =====
 
-// Logging middleware
-if (NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-} else {
-  app.use(morgan('combined'));
-}
-
-// Static file serving for HLS streams
+// Serve HLS video files with proper headers
 app.use('/stream', express.static(path.join(__dirname, '../uploads/videos'), {
   setHeaders: (res, filePath) => {
-    // Set proper MIME types for HLS files
-    if (filePath.endsWith('.m3u8')) {
+    const ext = path.extname(filePath);
+    
+    if (ext === '.m3u8') {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    } else if (filePath.endsWith('.ts')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    } else if (ext === '.ts') {
       res.setHeader('Content-Type', 'video/mp2t');
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year
     }
+    
+    // Enable range requests for video streaming
+    res.setHeader('Accept-Ranges', 'bytes');
+  }
+}));
+
+// Serve uploaded images/thumbnails
+app.use('/images', express.static(path.join(__dirname, '../uploads/images'), {
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 day
   }
 }));
 
 // ===== API ROUTES =====
 
-// Health check endpoint
+// Health check
 app.get('/api/health', (req, res) => {
   res.json({
-    status: 'healthy',
+    success: true,
+    message: 'Anime Streaming API is running',
     timestamp: new Date().toISOString(),
-    environment: NODE_ENV,
-    version: '1.0.0',
-    services: {
-      server: 'running',
-      database: 'pending', // Will update after DB connection
-      storage: 'available'
-    }
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0'
   });
 });
 
-// API version endpoint
-app.get('/api/version', (req, res) => {
-  res.json({
-    name: 'HLS Video Streaming API',
-    version: '1.0.0',
-    description: 'Backend API for HLS video processing and streaming',
-    endpoints: {
-      upload: '/api/videos/upload',
-      videos: '/api/videos',
-      stream: '/stream/:videoId',
-      health: '/api/health'
-    }
-  });
-});
+// API routes (will uncomment when routes are created)
+// app.use('/api/series', seriesRoutes);
+// app.use('/api/seasons', seasonRoutes);
+// app.use('/api/episodes', episodeRoutes);
+// app.use('/api/admin', adminRoutes);
+// app.use('/api/stream', streamingRoutes);
 
-// Video routes placeholder (will implement later)
-app.use('/api/videos', uploadLimiter);
-app.get('/api/videos', (req, res) => {
-  res.json({
-    message: 'Video API endpoint - Implementation coming soon',
-    available_soon: [
-      'GET /api/videos - List videos',
-      'POST /api/videos/upload - Upload video',
-      'GET /api/videos/:id - Get video details',
-      'DELETE /api/videos/:id - Delete video'
-    ]
-  });
-});
-
-// Upload endpoint placeholder
-app.post('/api/videos/upload', (req, res) => {
-  res.json({
-    message: 'Upload endpoint - Implementation coming soon',
-    status: 'pending',
-    next_steps: [
-      'Implement Multer file upload',
-      'Add FFmpeg video processing',
-      'Generate HLS streams'
-    ]
-  });
-});
-
-// ===== SOCKET.IO REAL-TIME EVENTS =====
+// ===== SOCKET.IO SETUP =====
 
 io.on('connection', (socket) => {
-  console.log(`🔌 Client connected: ${socket.id}`);
-
-  // Client joins video processing room
-  socket.on('join_video_room', (data) => {
-    const { videoId } = data;
-    socket.join(`video_${videoId}`);
-    console.log(`📺 Client ${socket.id} joined video room: ${videoId}`);
-    
-    socket.emit('joined_room', {
-      videoId,
-      message: 'Successfully joined video processing room'
-    });
+  console.log(`🔌 User connected: ${socket.id}`);
+  
+  // Handle admin authentication for processing updates
+  socket.on('admin_auth', (data) => {
+    // TODO: Verify admin JWT token
+    socket.join('admin_room');
+    console.log(`👤 Admin joined: ${socket.id}`);
   });
-
-  // Leave video room
-  socket.on('leave_video_room', (data) => {
-    const { videoId } = data;
-    socket.leave(`video_${videoId}`);
-    console.log(`📺 Client ${socket.id} left video room: ${videoId}`);
+  
+  // Handle video processing room join
+  socket.on('join_processing_room', (data) => {
+    const { jobId } = data;
+    socket.join(`processing_${jobId}`);
+    console.log(`📺 Joined processing room: ${jobId}`);
   });
-
-  // Handle disconnect
+  
   socket.on('disconnect', () => {
-    console.log(`🔌 Client disconnected: ${socket.id}`);
+    console.log(`🔌 User disconnected: ${socket.id}`);
   });
 });
 
@@ -198,69 +185,125 @@ io.on('connection', (socket) => {
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
-    error: 'Endpoint not found',
-    message: `${req.method} ${req.originalUrl} is not a valid endpoint`,
-    available_endpoints: [
-      'GET /api/health',
-      'GET /api/version', 
-      'GET /api/videos',
-      'POST /api/videos/upload'
-    ]
+    success: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: `Route ${req.originalUrl} not found`,
+      timestamp: new Date().toISOString()
+    }
   });
 });
 
 // Global error handler
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('🚨 Server Error:', error);
+  console.error('❌ Error:', error);
   
-  res.status(error.status || 500).json({
-    error: NODE_ENV === 'development' ? error.message : 'Internal server error',
-    ...(NODE_ENV === 'development' && { stack: error.stack }),
-    timestamp: new Date().toISOString(),
-    path: req.path
+  // Default error response
+  const statusCode = error.statusCode || error.status || 500;
+  const message = error.message || 'Internal Server Error';
+  
+  res.status(statusCode).json({
+    success: false,
+    error: {
+      code: error.code || 'INTERNAL_ERROR',
+      message,
+      timestamp: new Date().toISOString(),
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    }
   });
 });
 
-// ===== SERVER STARTUP =====
+// ===== STARTUP FUNCTION =====
 
-// Graceful shutdown handler
-const gracefulShutdown = () => {
-  console.log('\n🛑 Received shutdown signal, closing server gracefully...');
-  
+async function startServer() {
+  try {
+    console.log('🚀 Starting Anime Streaming Platform...');
+    
+    // Ensure upload directories exist
+    const uploadDirs = [
+      'uploads/videos',
+      'uploads/images', 
+      'uploads/temp',
+      'logs'
+    ];
+    
+    for (const dir of uploadDirs) {
+      const fullPath = path.join(__dirname, '..', dir);
+      await fs.ensureDir(fullPath);
+      console.log(`📁 Ensured directory: ${dir}`);
+    }
+    
+    // Connect to database
+    await connectDatabase(process.env.MONGODB_URI!);
+    
+    // Create default admin user
+    await DatabaseUtils.seedAdminUser();
+    
+    // Get database stats
+    const stats = await DatabaseUtils.getCollectionStats();
+    console.log('📊 Database stats:', stats);
+    
+    // Start server
+    const PORT = process.env.PORT || 5000;
+    
+    server.listen(PORT, () => {
+      console.log('');
+      console.log('🎯 ================================');
+      console.log(`🎬 ANIME STREAMING PLATFORM`);
+      console.log('🎯 ================================');
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🌐 API: http://localhost:${PORT}/api`);
+      console.log(`📺 Streaming: http://localhost:${PORT}/stream`);
+      console.log(`🔌 Socket.IO: ws://localhost:${PORT}`);
+      console.log(`📊 Health: http://localhost:${PORT}/api/health`);
+      console.log('🎯 ================================');
+      console.log('');
+      
+      // Log admin credentials
+      console.log('👤 Default Admin Credentials:');
+      console.log('📧 Email: admin@animestreaming.com');
+      console.log('🔑 Password: admin123456');
+      console.log('');
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+// ===== GRACEFUL SHUTDOWN =====
+
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully...');
   server.close(() => {
-    console.log('📴 HTTP server closed');
-    
-    // Close database connections here when implemented
-    // await mongoose.connection.close();
-    
-    console.log('✅ Graceful shutdown completed');
+    console.log('✅ Server closed');
     process.exit(0);
   });
-
-  // Force close after timeout
-  setTimeout(() => {
-    console.log('⚠️ Could not close connections in time, forcefully shutting down');
-    process.exit(1);
-  }, 10000);
-};
-
-// Handle shutdown signals
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
-
-// Start server
-server.listen(PORT, () => {
-  console.log('\n🚀 HLS Video Streaming Server Started!');
-  console.log('=====================================');
-  console.log(`📍 Environment: ${NODE_ENV}`);
-  console.log(`📍 Server: http://localhost:${PORT}`);
-  console.log(`📍 API Base: http://localhost:${PORT}/api`);
-  console.log(`📍 Health Check: http://localhost:${PORT}/api/health`);
-  console.log(`📍 Frontend CORS: ${CORS_ORIGIN}`);
-  console.log('=====================================');
-  console.log('🎬 Ready for HLS video processing!');
-  console.log('📝 Next: Implement database connection & upload logic\n');
 });
 
-// Export app and io for testing
-export { app, io, server };
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+// Unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Promise Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+// Uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+// Start the server
+startServer();
+
+// Export for testing
+export { app, server, io };

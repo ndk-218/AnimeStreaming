@@ -1,16 +1,16 @@
 import mongoose from 'mongoose';
 
 // ===== PHASE 1 MODELS (REQUIRED) =====
-import { Series } from './Series';
-import { Season } from './Season';  
-import { Episode } from './Episode';
-import { Admin } from './Admin';
-import { ProcessingJob } from './ProcessingJob';
+export { Series } from './Series';
+export { Season } from './Season';  
+export { Episode } from './Episode';
+export { Admin } from './Admin';
+export { ProcessingJob } from './ProcessingJob';
 
 // ===== PHASE 2 MODELS (TODO - IMPLEMENT LATER) =====
-// import { User } from './User';
-// import { Comment } from './Comment';
-// import { Rating } from './Rating';
+// export { User } from './User';
+// export { Comment } from './Comment';
+// export { Rating } from './Rating';
 
 // ===== DATABASE CONNECTION =====
 
@@ -93,6 +93,13 @@ export class Database {
     try {
       console.log('🔍 Creating database indexes...');
       
+      // Import models to ensure schemas are registered
+      const { Series } = await import('./Series');
+      const { Season } = await import('./Season');
+      const { Episode } = await import('./Episode');
+      const { Admin } = await import('./Admin');
+      const { ProcessingJob } = await import('./ProcessingJob');
+      
       // Create indexes for all models
       await Promise.all([
         Series.createIndexes(),
@@ -130,16 +137,7 @@ export const disconnectDatabase = async (): Promise<void> => {
   await db.disconnect();
 };
 
-// ===== EXPORT MODELS =====
-
-// Phase 1 Models (Current)
-export {
-  Series,
-  Season,
-  Episode,
-  Admin,
-  ProcessingJob
-};
+// ===== EXPORT TYPES =====
 
 // Re-export types
 export type { ISeries } from './Series';
@@ -173,32 +171,48 @@ export class DatabaseUtils {
   }
   
   static async seedAdminUser(): Promise<void> {
-    const existingAdmin = await Admin.findOne({ email: 'admin@animestreaming.com' });
-    
-    if (!existingAdmin) {
-      const admin = new Admin({
-        email: 'admin@animestreaming.com',
-        displayName: 'System Administrator',
-        role: 'super_admin'
-      });
+    try {
+      const { Admin } = await import('./Admin');
       
-      await admin.setPassword('admin123456');
-      await admin.save();
+      const existingAdmin = await Admin.findOne({ email: 'admin@animestreaming.com' });
       
-      console.log('👤 Default admin user created');
-      console.log('📧 Email: admin@animestreaming.com');
-      console.log('🔑 Password: admin123456');
+      if (!existingAdmin) {
+        const admin = new Admin({
+          email: 'admin@animestreaming.com',
+          displayName: 'System Administrator',
+          role: 'super_admin'
+        });
+        
+        await admin.setPassword('admin123456');
+        await admin.save();
+        
+        console.log('👤 Default admin user created');
+        console.log('📧 Email: admin@animestreaming.com');
+        console.log('🔑 Password: admin123456');
+      }
+    } catch (error) {
+      console.error('❌ Failed to seed admin user:', error);
     }
   }
   
   static async getCollectionStats(): Promise<Record<string, number>> {
     const stats: Record<string, number> = {};
     
-    stats.series = await Series.countDocuments();
-    stats.seasons = await Season.countDocuments(); 
-    stats.episodes = await Episode.countDocuments();
-    stats.admins = await Admin.countDocuments();
-    stats.processingJobs = await ProcessingJob.countDocuments();
+    try {
+      const { Series } = await import('./Series');
+      const { Season } = await import('./Season');
+      const { Episode } = await import('./Episode');
+      const { Admin } = await import('./Admin');
+      const { ProcessingJob } = await import('./ProcessingJob');
+      
+      stats.series = await Series.countDocuments();
+      stats.seasons = await Season.countDocuments(); 
+      stats.episodes = await Episode.countDocuments();
+      stats.admins = await Admin.countDocuments();
+      stats.processingJobs = await ProcessingJob.countDocuments();
+    } catch (error) {
+      console.error('Error getting collection stats:', error);
+    }
     
     return stats;
   }
@@ -210,6 +224,9 @@ export class DatabaseUtils {
     const issues: string[] = [];
     
     try {
+      const { Season } = await import('./Season');
+      const { Episode } = await import('./Episode');
+      
       // Check seasons reference valid series
       const orphanedSeasons = await Season.find({}).populate('seriesId');
       orphanedSeasons.forEach(season => {
@@ -266,6 +283,8 @@ export const DevUtils = {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('Cannot create sample data in production');
     }
+    
+    const { Series } = await import('./Series');
     
     // Sample series
     const series = new Series({
