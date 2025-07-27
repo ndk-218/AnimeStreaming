@@ -1,0 +1,54 @@
+const mongoose = require('mongoose');
+
+// ===== SIMPLE SEASON SCHEMA =====
+const seasonSchema = new mongoose.Schema(
+  {
+    seriesId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Series',
+      required: true,
+      index: true
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    seasonNumber: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    seasonType: {
+      type: String,
+      enum: ['tv', 'movie', 'ova', 'special'],
+      default: 'tv'
+    },
+    releaseYear: {
+      type: Number,
+      min: 1900,
+      max: new Date().getFullYear() + 5
+    },
+    description: String,
+    posterImage: String,
+    episodeCount: {
+      type: Number,
+      default: 0
+    },
+    status: {
+      type: String,
+      enum: ['upcoming', 'airing', 'completed'],
+      default: 'upcoming'
+    }
+  },
+  {
+    timestamps: true,
+    versionKey: false
+  }
+);
+
+// ===== BASIC INDEXES =====
+seasonSchema.index({ seriesId: 1, seasonNumber: 1 }, { unique: true });
+seasonSchema.index({ status: 1 });
+
+module.exports = mongoose.model('Season', seasonSchema);

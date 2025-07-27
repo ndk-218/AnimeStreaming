@@ -1,22 +1,24 @@
-import mongoose from 'mongoose';
+// @ts-nocheck
+const mongoose = require('mongoose');
+
+// ===== IMPORT MODELS =====
+const Series = require('./Series');
+const Season = require('./Season');  
+const Episode = require('./Episode');
+const Admin = require('./Admin');
+const ProcessingJob = require('./ProcessingJob');
 
 // ===== EXPORT MODELS =====
-export { Series } from './Series';
-export { Season } from './Season';  
-export { Episode } from './Episode';
-export { Admin } from './Admin';
-export { ProcessingJob } from './ProcessingJob';
+module.exports = {
+  Series,
+  Season,
+  Episode,
+  Admin,
+  ProcessingJob
+};
 
-// ===== EXPORT TYPES =====
-export type { ISeries } from './Series';
-export type { ISeason } from './Season';
-export type { IEpisode } from './Episode';
-export type { IAdmin } from './Admin';
-export type { IProcessingJob } from './ProcessingJob';
-
-// ===== DATABASE CONNECTION ĐƠN GIẢN =====
-
-export const connectDatabase = async (uri: string): Promise<void> => {
+// ===== SIMPLE DATABASE CONNECTION =====
+const connectDatabase = async (uri) => {
   try {
     await mongoose.connect(uri, {
       maxPoolSize: 10,
@@ -26,7 +28,7 @@ export const connectDatabase = async (uri: string): Promise<void> => {
     
     console.log('✅ Database connected successfully');
     
-    // Setup event listeners
+    // Basic event listeners
     mongoose.connection.on('error', (error) => {
       console.error('❌ Database error:', error);
     });
@@ -41,18 +43,15 @@ export const connectDatabase = async (uri: string): Promise<void> => {
   }
 };
 
-export const disconnectDatabase = async (): Promise<void> => {
+const disconnectDatabase = async () => {
   await mongoose.disconnect();
   console.log('✅ Database disconnected');
 };
 
-// ===== UTILITIES ĐƠN GIẢN =====
-
-export class DatabaseUtils {
-  static async seedAdminUser(): Promise<void> {
+// ===== SIMPLE UTILITIES =====
+const DatabaseUtils = {
+  async seedAdminUser() {
     try {
-      const { Admin } = await import('./Admin');
-      
       const existingAdmin = await Admin.findOne({ email: 'admin@animestreaming.com' });
       
       if (!existingAdmin) {
@@ -71,12 +70,10 @@ export class DatabaseUtils {
     } catch (error) {
       console.error('❌ Failed to seed admin user:', error);
     }
-  }
+  },
   
-  static async getStats(): Promise<Record<string, number>> {
+  async getStats() {
     try {
-      const { Series, Season, Episode, Admin, ProcessingJob } = await import('./index');
-      
       return {
         series: await Series.countDocuments(),
         seasons: await Season.countDocuments(), 
@@ -89,6 +86,9 @@ export class DatabaseUtils {
       return {};
     }
   }
-}
+};
 
-export default mongoose;
+// ===== EXPORT FUNCTIONS =====
+module.exports.connectDatabase = connectDatabase;
+module.exports.disconnectDatabase = disconnectDatabase;
+module.exports.DatabaseUtils = DatabaseUtils;

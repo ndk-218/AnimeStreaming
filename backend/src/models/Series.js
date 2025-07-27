@@ -1,22 +1,7 @@
-import mongoose, { Schema, Document } from 'mongoose';
+const mongoose = require('mongoose');
 
-// ===== INTERFACE CHO ĐỒ ÁN =====
-export interface ISeries extends Document {
-  title: string;
-  originalTitle?: string;
-  slug: string;
-  description?: string;
-  releaseYear?: number;
-  status: 'ongoing' | 'completed' | 'upcoming';
-  genres: string[];
-  studio?: string;
-  posterImage?: string;
-  bannerImage?: string;
-  viewCount: number;
-}
-
-// ===== SCHEMA ĐƠN GIẢN =====
-const seriesSchema = new Schema<ISeries>(
+// ===== SUPER SIMPLE SERIES SCHEMA =====
+const seriesSchema = new mongoose.Schema(
   {
     title: { 
       type: String, 
@@ -33,9 +18,7 @@ const seriesSchema = new Schema<ISeries>(
       unique: true,
       lowercase: true 
     },
-    description: { 
-      type: String
-    },
+    description: String,
     releaseYear: {
       type: Number,
       min: 1900,
@@ -63,22 +46,25 @@ const seriesSchema = new Schema<ISeries>(
   },
   { 
     timestamps: true,
-    versionKey: false, // Disable __v
-    toJSON: { 
-      virtuals: true
-    }
+    versionKey: false
   }
 );
 
-// ===== INDEX CƠ BẢN =====
+// ===== BASIC INDEXES =====
 seriesSchema.index({ title: 'text' });
 seriesSchema.index({ slug: 1 });
 seriesSchema.index({ genres: 1 });
 
-// ===== METHOD ĐƠN GIẢN =====
-seriesSchema.methods.incrementViewCount = function() {
-  this.viewCount += 1;
-  return this.save();
-};
+// ===== AUTO SLUG GENERATION =====
+seriesSchema.pre('save', function(next) {
+  if (!this.slug && this.title) {
+    this.slug = this.title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .trim('-');
+  }
+  next();
+});
 
-export const Series = mongoose.model<ISeries>('Series', seriesSchema);
+module.exports = mongoose.model('Series', seriesSchema);

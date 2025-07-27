@@ -99,12 +99,12 @@ queue-data/
 
 # ===== EXPLICITLY ALLOW TYPESCRIPT FILES =====
 # Allow ALL TypeScript files except in video directories
-!*.ts
-!**/*.ts
+!*.js
+!**/*.js
 !**/*.tsx
-!src/**/*.ts
-!backend/**/*.ts
-!frontend/**/*.ts
+!src/**/*.js
+!backend/**/*.js
+!frontend/**/*.js
 
 # But still ignore HLS video segments
 uploads/**/*.ts
