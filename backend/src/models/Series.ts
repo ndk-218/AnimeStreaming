@@ -1,11 +1,26 @@
-import mongoose, { Schema } from 'mongoose';
-import { ISeriesDocument } from '../types/series.types';
+import mongoose, { Schema, Document } from 'mongoose';
 
-const seriesSchema = new Schema<ISeriesDocument>(
+// ===== INTERFACE CHO ĐỒ ÁN =====
+export interface ISeries extends Document {
+  title: string;
+  originalTitle?: string;
+  slug: string;
+  description?: string;
+  releaseYear?: number;
+  status: 'ongoing' | 'completed' | 'upcoming';
+  genres: string[];
+  studio?: string;
+  posterImage?: string;
+  bannerImage?: string;
+  viewCount: number;
+}
+
+// ===== SCHEMA ĐƠN GIẢN =====
+const seriesSchema = new Schema<ISeries>(
   {
     title: { 
       type: String, 
-      required: [true, 'Title is required'],
+      required: true,
       trim: true 
     },
     originalTitle: { 
@@ -19,13 +34,12 @@ const seriesSchema = new Schema<ISeriesDocument>(
       lowercase: true 
     },
     description: { 
-      type: String,
-      maxlength: [2000, 'Description cannot exceed 2000 characters']
+      type: String
     },
     releaseYear: {
       type: Number,
-      min: [1900, 'Release year must be after 1900'],
-      max: [new Date().getFullYear() + 5, 'Release year cannot be too far in the future']
+      min: 1900,
+      max: new Date().getFullYear() + 5
     },
     status: {
       type: String,
@@ -42,46 +56,29 @@ const seriesSchema = new Schema<ISeriesDocument>(
     },
     posterImage: String,
     bannerImage: String,
-    stats: {
-      totalSeasons: { type: Number, default: 0, min: 0 },
-      totalEpisodes: { type: Number, default: 0, min: 0 },
-      averageRating: { type: Number, default: 0, min: 0, max: 10 },
-      viewCount: { type: Number, default: 0, min: 0 }
+    viewCount: {
+      type: Number,
+      default: 0
     }
   },
   { 
     timestamps: true,
+    versionKey: false, // Disable __v
     toJSON: { 
-      virtuals: true,
-      transform: function(doc, ret) {
-        delete ret.__v;
-        return ret;
-      }
+      virtuals: true
     }
   }
 );
 
-// Virtual relationship
-seriesSchema.virtual('seasons', {
-  ref: 'Season',
-  localField: '_id',
-  foreignField: 'seriesId'
-});
+// ===== INDEX CƠ BẢN =====
+seriesSchema.index({ title: 'text' });
+seriesSchema.index({ slug: 1 });
+seriesSchema.index({ genres: 1 });
 
-// Instance methods
-seriesSchema.methods.incrementViewCount = function(): Promise<ISeriesDocument> {
-  this.stats.viewCount += 1;
+// ===== METHOD ĐƠN GIẢN =====
+seriesSchema.methods.incrementViewCount = function() {
+  this.viewCount += 1;
   return this.save();
 };
 
-// Indexes for performance
-seriesSchema.index({ title: 'text', originalTitle: 'text' });
-seriesSchema.index({ slug: 1 });
-seriesSchema.index({ genres: 1 });
-seriesSchema.index({ status: 1 });
-seriesSchema.index({ 'stats.averageRating': -1 });
-seriesSchema.index({ 'stats.viewCount': -1 });
-seriesSchema.index({ createdAt: -1 });
-
-// Export model với type
-export default mongoose.model<ISeriesDocument>('Series', seriesSchema);
+export const Series = mongoose.model<ISeries>('Series', seriesSchema);

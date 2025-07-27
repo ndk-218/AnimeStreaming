@@ -1,150 +1,104 @@
-import mongoose, { Schema } from 'mongoose';
-import { IEpisodeDocument, ISubtitle, IVideoQuality } from '../types/episode.types';
+import mongoose, { Schema, Document, Types } from 'mongoose';
 
+// ===== INTERFACE ĐƠN GIẢN CHO ĐỒ ÁN =====
+export interface ISubtitle {
+  language: string;
+  label: string;
+  file: string;
+}
+
+export interface IVideoQuality {
+  quality: '480p' | '1080p';
+  file: string;
+}
+
+export interface IEpisode extends Document {
+  seriesId: Types.ObjectId;
+  seasonId: Types.ObjectId;
+  episodeNumber: number;
+  title: string;
+  description?: string;
+  duration?: number;
+  thumbnail?: string;
+  hlsPath?: string;
+  qualities: IVideoQuality[];
+  subtitles: ISubtitle[];
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed';
+  viewCount: number;
+}
+
+// ===== SUB SCHEMAS ĐƠN GIẢN =====
 const subtitleSchema = new Schema<ISubtitle>({
-  language: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  label: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  file: {
-    type: String,
-    required: true
-  },
-  type: {
-    type: String,
-    enum: ['embedded', 'uploaded'],
-    default: 'uploaded'
-  }
-}, { _id: false });
+  language: { type: String, required: true },
+  label: { type: String, required: true },
+  file: { type: String, required: true }
+}, { _id: false, versionKey: false });
 
 const videoQualitySchema = new Schema<IVideoQuality>({
-  quality: {
-    type: String,
-    enum: ['480p', '720p', '1080p'],
-    required: true
-  },
-  file: {
-    type: String,
-    required: true
-  }
-}, { _id: false });
+  quality: { type: String, enum: ['480p', '1080p'], required: true },
+  file: { type: String, required: true }
+}, { _id: false, versionKey: false });
 
-const episodeSchema = new Schema<IEpisodeDocument>(
+// ===== SCHEMA CHÍNH =====
+const episodeSchema = new Schema<IEpisode>(
   {
     seriesId: {
       type: Schema.Types.ObjectId,
       ref: 'Series',
-      required: [true, 'Series ID is required'],
+      required: true,
       index: true
     },
     seasonId: {
       type: Schema.Types.ObjectId,
       ref: 'Season',
-      required: [true, 'Season ID is required'],
+      required: true,
       index: true
     },
     episodeNumber: {
       type: Number,
-      required: [true, 'Episode number is required'],
-      min: [0, 'Episode number cannot be negative']
+      required: true,
+      min: 1
     },
     title: {
       type: String,
-      required: [true, 'Episode title is required'],
+      required: true,
       trim: true
     },
-    description: {
-      type: String,
-      maxlength: [1000, 'Description cannot exceed 1000 characters']
-    },
-    duration: {
-      type: Number,
-      min: [0, 'Duration cannot be negative']
-    },
+    description: String,
+    duration: Number, // seconds
     thumbnail: String,
-    originalFile: String,
-    hlsPath: String,
+    hlsPath: String, // path to m3u8 file
     qualities: [videoQualitySchema],
     subtitles: [subtitleSchema],
     processingStatus: {
       type: String,
       enum: ['pending', 'processing', 'completed', 'failed'],
-      default: 'pending',
-      index: true
+      default: 'pending'
     },
-    processingError: String,
     viewCount: {
       type: Number,
-      default: 0,
-      min: 0
+      default: 0
     }
   },
   {
     timestamps: true,
-    toJSON: {
-      virtuals: true,
-      transform: function(doc, ret) {
-        delete ret.__v;
-        delete ret.originalFile; // Hide original file path
-        return ret;
-      }
-    }
+    versionKey: false, // Disable __v
+    toJSON: { virtuals: true }
   }
 );
 
-// Virtual relationships
-episodeSchema.virtual('series', {
-  ref: 'Series',
-  localField: 'seriesId',
-  foreignField: '_id',
-  justOne: true
-});
-
-episodeSchema.virtual('season', {
-  ref: 'Season',
-  localField: 'seasonId',
-  foreignField: '_id',
-  justOne: true
-});
-
-// Compound indexes
+// ===== INDEX CƠ BẢN =====
 episodeSchema.index({ seasonId: 1, episodeNumber: 1 }, { unique: true });
-episodeSchema.index({ seriesId: 1, processingStatus: 1 });
-episodeSchema.index({ createdAt: -1 });
+episodeSchema.index({ processingStatus: 1 });
 
-// Instance methods
-episodeSchema.methods.incrementViewCount = function(): Promise<IEpisodeDocument> {
+// ===== METHODS ĐƠN GIẢN =====
+episodeSchema.methods.incrementViewCount = function() {
   this.viewCount += 1;
   return this.save();
 };
 
-episodeSchema.methods.isPlayable = function(): boolean {
-  return this.processingStatus === 'completed' && !!this.hlsPath;
+episodeSchema.methods.isReady = function() {
+  return this.processingStatus === 'completed';
 };
 
-// Pre-save middleware
-episodeSchema.pre('save', async function(next) {
-  // Validate episode number uniqueness per season
-  if (this.isNew || this.isModified('episodeNumber')) {
-    const existingEpisode = await mongoose.model('Episode').findOne({
-      seasonId: this.seasonId,
-      episodeNumber: this.episodeNumber,
-      _id: { $ne: this._id }
-    });
-    
-    if (existingEpisode) {
-      next(new Error(`Episode number ${this.episodeNumber} already exists in this season`));
-      return;
-    }
-  }
-  
-  next();
-});
-
-export default mongoose.model<IEpisodeDocument>('Episode', episodeSchema);
+export const Episode = mongoose.model<IEpisode>('Episode', episodeSchema);

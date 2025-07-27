@@ -1,44 +1,52 @@
-import mongoose, { Schema } from 'mongoose';
-import { ISeasonDocument } from '../types/season.types';
+import mongoose, { Schema, Document, Types } from 'mongoose';
 
-const seasonSchema = new Schema<ISeasonDocument>(
+// ===== INTERFACE ĐƠN GIẢN =====
+export interface ISeason extends Document {
+  seriesId: Types.ObjectId;
+  title: string;
+  seasonNumber: number;
+  seasonType: 'tv' | 'movie' | 'ova' | 'special';
+  releaseYear?: number;
+  description?: string;
+  posterImage?: string;
+  episodeCount: number;
+  status: 'upcoming' | 'airing' | 'completed';
+}
+
+// ===== SCHEMA ĐƠN GIẢN =====
+const seasonSchema = new Schema<ISeason>(
   {
     seriesId: {
       type: Schema.Types.ObjectId,
       ref: 'Series',
-      required: [true, 'Series ID is required'],
+      required: true,
       index: true
     },
     title: {
       type: String,
-      required: [true, 'Season title is required'],
+      required: true,
       trim: true
     },
     seasonNumber: {
       type: Number,
-      required: [true, 'Season number is required'],
-      min: [0, 'Season number cannot be negative']
+      required: true,
+      min: 0
     },
     seasonType: {
       type: String,
       enum: ['tv', 'movie', 'ova', 'special'],
-      default: 'tv',
-      required: true
+      default: 'tv'
     },
     releaseYear: {
       type: Number,
-      min: [1900, 'Release year must be after 1900'],
-      max: [new Date().getFullYear() + 5, 'Release year cannot be too far in the future']
+      min: 1900,
+      max: new Date().getFullYear() + 5
     },
-    description: {
-      type: String,
-      maxlength: [1000, 'Description cannot exceed 1000 characters']
-    },
+    description: String,
     posterImage: String,
     episodeCount: {
       type: Number,
-      default: 0,
-      min: [0, 'Episode count cannot be negative']
+      default: 0
     },
     status: {
       type: String,
@@ -48,58 +56,17 @@ const seasonSchema = new Schema<ISeasonDocument>(
   },
   {
     timestamps: true,
-    toJSON: {
-      virtuals: true,
-      transform: function(doc, ret) {
-        delete ret.__v;
-        return ret;
-      }
-    }
+    versionKey: false, // Disable __v
+    toJSON: { virtuals: true }
   }
 );
 
-// Virtual relationship
-seasonSchema.virtual('episodes', {
-  ref: 'Episode',
-  localField: '_id',
-  foreignField: 'seasonId'
-});
-
-// Virtual for series details
-seasonSchema.virtual('series', {
-  ref: 'Series',
-  localField: 'seriesId',
-  foreignField: '_id',
-  justOne: true
-});
-
-// Compound indexes
+// ===== INDEX CƠ BẢN =====
 seasonSchema.index({ seriesId: 1, seasonNumber: 1 }, { unique: true });
-seasonSchema.index({ seriesId: 1, seasonType: 1 });
-seasonSchema.index({ status: 1 });
 
-// Instance method
-seasonSchema.methods.isMovie = function(): boolean {
+// ===== METHOD ĐƠN GIẢN =====
+seasonSchema.methods.isMovie = function() {
   return this.seasonType === 'movie';
 };
 
-// Pre-save middleware for validation
-seasonSchema.pre('save', async function(next) {
-  // Validate season number uniqueness per series
-  if (this.isNew || this.isModified('seasonNumber')) {
-    const existingSeason = await mongoose.model('Season').findOne({
-      seriesId: this.seriesId,
-      seasonNumber: this.seasonNumber,
-      _id: { $ne: this._id }
-    });
-    
-    if (existingSeason) {
-      next(new Error(`Season number ${this.seasonNumber} already exists for this series`));
-      return;
-    }
-  }
-  
-  next();
-});
-
-export default mongoose.model<ISeasonDocument>('Season', seasonSchema);
+export const Season = mongoose.model<ISeason>('Season', seasonSchema);
