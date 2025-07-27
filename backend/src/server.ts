@@ -306,4 +306,4 @@ process.on('uncaughtException', (error) => {
 startServer();
 
 // Export for testing
-export { app, server, io };
+export { app, server, io }; 
