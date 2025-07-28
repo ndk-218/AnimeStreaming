@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// ===== SIMPLE SEASON SCHEMA =====
+// ===== UPDATED SEASON SCHEMA =====
 const seasonSchema = new mongoose.Schema(
   {
     seriesId: {
@@ -47,8 +47,11 @@ const seasonSchema = new mongoose.Schema(
   }
 );
 
-// ===== BASIC INDEXES =====
-seasonSchema.index({ seriesId: 1, seasonNumber: 1 }, { unique: true });
+// ===== UPDATED INDEXES =====
+// Cho phép multiple movies với cùng series
+// Movie được đánh số theo year thay vì sequential number
+seasonSchema.index({ seriesId: 1, seasonNumber: 1, seasonType: 1 }, { unique: true });
 seasonSchema.index({ status: 1 });
+seasonSchema.index({ seasonType: 1 });
 
 module.exports = mongoose.model('Season', seasonSchema);
