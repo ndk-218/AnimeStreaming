@@ -377,6 +377,99 @@ class SeasonService {
       throw error;
     }
   }
+
+  static async getNextSeasonNumber(seriesId, seasonType) {
+    try {
+      if (seasonType === 'movie') {
+        // Cho movies, return current year
+        return new Date().getFullYear();
+      }
+
+      // Cho TV/OVA/Special, tìm số cao nhất + 1
+      const lastSeason = await Season.findOne({
+        seriesId: seriesId,
+        seasonType: seasonType
+      })
+      .sort({ seasonNumber: -1 })
+      .select('seasonNumber');
+
+      return lastSeason ? lastSeason.seasonNumber + 1 : 1;
+
+    } catch (error) {
+      console.error('❌ Error getting next season number:', error.message);
+      return 1;
+    }
+  }
+
+  /**
+   * Helper: Generate season title based on type và number
+   */
+  static generateSeasonTitle(seasonType, seasonNumber, customTitle = null) {
+    if (customTitle) {
+      return customTitle;
+    }
+
+    switch (seasonType) {
+      case 'movie':
+        return `Movie ${seasonNumber}`;
+      case 'ova':
+        return `OVA`;
+      case 'special':
+        return `Special`;
+      case 'tv':
+      default:
+        return `Season ${seasonNumber}`;
+    }
+  }
+
+  /**
+   * Lấy tất cả movies của series (sorted by year)
+   */
+  static async getMoviesBySeries(seriesId) {
+    try {
+      const movies = await Season.find({
+        seriesId: seriesId,
+        seasonType: 'movie'
+      })
+      .select('title seasonNumber releaseYear description posterImage episodeCount status')
+      .sort({ seasonNumber: 1 }); // Sort by year
+
+      return movies;
+
+    } catch (error) {
+      console.error('❌ Error getting movies by series:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate season data trước khi tạo
+   */
+  static validateSeasonData(data) {
+    const errors = [];
+
+    if (!data.seriesId) errors.push('Series ID is required');
+    if (!data.title || data.title.trim() === '') errors.push('Title is required');
+    if (data.seasonNumber === undefined || data.seasonNumber === null) {
+      errors.push('Season number is required');
+    }
+
+    // Validate theo từng type
+    if (data.seasonType === 'movie') {
+      if (data.seasonNumber < 1900 || data.seasonNumber > new Date().getFullYear() + 5) {
+        errors.push('Movie year must be between 1900 and future 5 years');
+      }
+    } else {
+      if (data.seasonNumber < 1) {
+        errors.push('Season number must be greater than 0');
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors: errors
+    };
+  }
 }
 
 module.exports = SeasonService;
