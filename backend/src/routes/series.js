@@ -20,9 +20,20 @@ const {
   getSeriesStats
 } = require('../controllers/series.controller');
 
-// TODO: Import middleware (sẽ tạo sau)
-// const { adminAuth } = require('../middleware/auth');
-// const { upload } = require('../middleware/upload');
+// Import middleware
+const {
+  adminAuth,
+  optionalAuth,
+  validateCreateSeries,
+  validateUpdateSeries,
+  validateGenre,
+  validateSlug,
+  validateMongoId,
+  validatePagination,
+  validateSearch,
+  validateSeriesFilters,
+  catchAsync
+} = require('../middleware');
 
 /**
  * ===== PUBLIC ROUTES (Anonymous access) =====
@@ -30,62 +41,116 @@ const {
 
 // Get series list với filtering và pagination
 // GET /api/series?search=term&genres=Action,Drama&status=ongoing&page=1&limit=20
-router.get('/', getSeriesList);
+router.get('/', 
+  optionalAuth,
+  validateSeriesFilters,
+  catchAsync(getSeriesList)
+);
 
 // Search series
 // GET /api/series/search?q=jujutsu&limit=10
-router.get('/search', searchSeries);
+router.get('/search', 
+  optionalAuth,
+  validateSearch,
+  catchAsync(searchSeries)
+);
 
 // Search suggestions cho autocomplete
 // GET /api/series/suggestions?q=ju&limit=5
-router.get('/suggestions', getSearchSuggestions);
+router.get('/suggestions', 
+  optionalAuth,
+  validateSearch,
+  catchAsync(getSearchSuggestions)
+);
 
 // Get trending series
 // GET /api/series/trending?limit=10
-router.get('/trending', getTrendingSeries);
+router.get('/trending', 
+  optionalAuth,
+  validatePagination,
+  catchAsync(getTrendingSeries)
+);
 
 // Get latest series
 // GET /api/series/latest?limit=10
-router.get('/latest', getLatestSeries);
+router.get('/latest', 
+  optionalAuth,
+  validatePagination,
+  catchAsync(getLatestSeries)
+);
 
 // Get all available genres
-// GET /api/genres
-router.get('/genres', getAllGenres);
+// GET /api/series/genres
+router.get('/genres', 
+  optionalAuth,
+  catchAsync(getAllGenres)
+);
 
-// Get all available studios
-// GET /api/studios  
-router.get('/studios', getAllStudios);
+// Get all available studios  
+// GET /api/series/studios
+router.get('/studios', 
+  optionalAuth,
+  catchAsync(getAllStudios)
+);
 
 // Get series by genre
 // GET /api/series/genre/Action?limit=20
-router.get('/genre/:genre', getSeriesByGenre);
+router.get('/genre/:genre', 
+  optionalAuth,
+  validateGenre,
+  validatePagination,
+  catchAsync(getSeriesByGenre)
+);
 
 // Get series by slug (for SEO-friendly URLs)
 // GET /api/series/slug/jujutsu-kaisen
-router.get('/slug/:slug', getSeriesBySlug);
+router.get('/slug/:slug', 
+  optionalAuth,
+  validateSlug,
+  catchAsync(getSeriesBySlug)
+);
 
 // Get series by ID với full details
 // GET /api/series/507f1f77bcf86cd799439011
-router.get('/:id', getSeriesById);
+router.get('/:id', 
+  optionalAuth,
+  validateMongoId,
+  catchAsync(getSeriesById)
+);
 
 /**
  * ===== ADMIN ROUTES (Authentication required) =====
  */
 
 // Create new series (Admin only)
-// POST /api/admin/series
-router.post('/admin', createSeries); // TODO: Add adminAuth middleware
+// POST /api/series/admin
+router.post('/admin', 
+  adminAuth,
+  validateCreateSeries,
+  catchAsync(createSeries)
+);
 
 // Update series (Admin only)  
-// PUT /api/admin/series/507f1f77bcf86cd799439011
-router.put('/admin/:id', updateSeries); // TODO: Add adminAuth middleware
+// PUT /api/series/admin/507f1f77bcf86cd799439011
+router.put('/admin/:id', 
+  adminAuth,
+  validateUpdateSeries,
+  catchAsync(updateSeries)
+);
 
 // Delete series (Admin only)
-// DELETE /api/admin/series/507f1f77bcf86cd799439011
-router.delete('/admin/:id', deleteSeries); // TODO: Add adminAuth middleware
+// DELETE /api/series/admin/507f1f77bcf86cd799439011
+router.delete('/admin/:id', 
+  adminAuth,
+  validateMongoId,
+  catchAsync(deleteSeries)
+);
 
 // Get series statistics (Admin only)
-// GET /api/admin/series/stats
-router.get('/admin/stats', getSeriesStats); // TODO: Add adminAuth middleware
+// GET /api/series/admin/stats
+router.get('/admin/stats', 
+  adminAuth,
+  catchAsync(getSeriesStats)
+);
 
 module.exports = router;

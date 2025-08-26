@@ -19,8 +19,23 @@ const {
   getNextSeasonNumber
 } = require('../controllers/seasons.controller');
 
-// TODO: Import middleware
-// const { adminAuth } = require('../middleware/auth');
+// Import middleware
+const {
+  adminAuth,
+  optionalAuth,
+  validateCreateSeason,
+  validateUpdateSeason,
+  validateMongoId,
+  validateSeriesId,
+  validateSeasonId,
+  validatePagination,
+  validateSearch,
+  validateRequest,
+  catchAsync
+} = require('../middleware');
+
+// Import additional validation from express-validator
+const { body, param, query } = require('express-validator');
 
 /**
  * ===== PUBLIC ROUTES (Anonymous access) =====
@@ -28,58 +43,128 @@ const {
 
 // Get season by ID với episodes
 // GET /api/seasons/507f1f77bcf86cd799439011?includeProcessing=false
-router.get('/:id', getSeasonById);
+router.get('/:id', 
+  optionalAuth,
+  validateMongoId,
+  catchAsync(getSeasonById)
+);
 
 // Search seasons
 // GET /api/seasons/search?q=season&limit=20
-router.get('/search', searchSeasons);
+router.get('/search', 
+  optionalAuth,
+  validateSearch,
+  catchAsync(searchSeasons)
+);
 
 // Get recent seasons
 // GET /api/seasons/recent?limit=10
-router.get('/recent', getRecentSeasons);
+router.get('/recent', 
+  optionalAuth,
+  validatePagination,
+  catchAsync(getRecentSeasons)
+);
 
 // Get seasons by series ID
-// GET /api/series/507f1f77bcf86cd799439011/seasons?includeEpisodes=true
-router.get('/series/:seriesId', getSeasonsBySeries);
+// GET /api/seasons/series/507f1f77bcf86cd799439011?includeEpisodes=true
+router.get('/series/:seriesId', 
+  optionalAuth,
+  validateSeriesId,
+  catchAsync(getSeasonsBySeries)
+);
 
 // Get seasons by type trong series
-// GET /api/series/507f1f77bcf86cd799439011/seasons/type/movie
-router.get('/series/:seriesId/type/:seasonType', getSeasonsByType);
+// GET /api/seasons/series/507f1f77bcf86cd799439011/type/movie
+router.get('/series/:seriesId/type/:seasonType', 
+  optionalAuth,
+  validateSeriesId,
+  [
+    param('seasonType')
+      .isIn(['tv', 'movie', 'ova', 'special'])
+      .withMessage('Season type must be: tv, movie, ova, or special'),
+    validateRequest
+  ],
+  catchAsync(getSeasonsByType)
+);
 
 // Get season by series ID và season number
-// GET /api/series/507f1f77bcf86cd799439011/seasons/number/1
-router.get('/series/:seriesId/number/:seasonNumber', getSeasonByNumber);
+// GET /api/seasons/series/507f1f77bcf86cd799439011/number/1
+router.get('/series/:seriesId/number/:seasonNumber', 
+  optionalAuth,
+  validateSeriesId,
+  [
+    param('seasonNumber')
+      .isInt({ min: 0 })
+      .withMessage('Season number must be a non-negative integer'),
+    validateRequest
+  ],
+  catchAsync(getSeasonByNumber)
+);
 
 // Get all movies của series (shortcut cho movie type)
-// GET /api/series/507f1f77bcf86cd799439011/movies
-router.get('/series/:seriesId/movies', getMoviesBySeries);
+// GET /api/seasons/series/507f1f77bcf86cd799439011/movies
+router.get('/series/:seriesId/movies', 
+  optionalAuth,
+  validateSeriesId,
+  catchAsync(getMoviesBySeries)
+);
 
 /**
  * ===== ADMIN ROUTES (Authentication required) =====
  */
 
 // Create new season (Admin only)
-// POST /api/admin/seasons
-router.post('/admin', createSeason); // TODO: Add adminAuth middleware
+// POST /api/seasons/admin
+router.post('/admin', 
+  adminAuth,
+  validateCreateSeason,
+  catchAsync(createSeason)
+);
 
 // Update season (Admin only)
-// PUT /api/admin/seasons/507f1f77bcf86cd799439011
-router.put('/admin/:id', updateSeason); // TODO: Add adminAuth middleware
+// PUT /api/seasons/admin/507f1f77bcf86cd799439011
+router.put('/admin/:id', 
+  adminAuth,
+  validateUpdateSeason,
+  catchAsync(updateSeason)
+);
 
 // Delete season (Admin only)
-// DELETE /api/admin/seasons/507f1f77bcf86cd799439011
-router.delete('/admin/:id', deleteSeason); // TODO: Add adminAuth middleware
+// DELETE /api/seasons/admin/507f1f77bcf86cd799439011
+router.delete('/admin/:id', 
+  adminAuth,
+  validateMongoId,
+  catchAsync(deleteSeason)
+);
 
 // Update episode count for season (Internal/Admin use)
-// PUT /api/admin/seasons/507f1f77bcf86cd799439011/episode-count
-router.put('/admin/:id/episode-count', updateEpisodeCount); // TODO: Add adminAuth middleware
+// PUT /api/seasons/admin/507f1f77bcf86cd799439011/episode-count
+router.put('/admin/:id/episode-count', 
+  adminAuth,
+  validateMongoId,
+  catchAsync(updateEpisodeCount)
+);
 
 // Get season statistics (Admin only)
-// GET /api/admin/seasons/stats
-router.get('/admin/stats', getSeasonStats); // TODO: Add adminAuth middleware
+// GET /api/seasons/admin/stats
+router.get('/admin/stats', 
+  adminAuth,
+  catchAsync(getSeasonStats)
+);
 
 // Get suggested next season number và title
-// GET /api/admin/series/507f1f77bcf86cd799439011/seasons/next-number?type=tv
-router.get('/admin/series/:seriesId/next-number', getNextSeasonNumber); // TODO: Add adminAuth middleware
+// GET /api/seasons/admin/series/507f1f77bcf86cd799439011/next-number?type=tv
+router.get('/admin/series/:seriesId/next-number', 
+  adminAuth,
+  validateSeriesId,
+  [
+    query('type')
+      .optional()
+      .isIn(['tv', 'movie', 'ova', 'special'])
+      .withMessage('Type must be: tv, movie, ova, or special'),
+    validateRequest
+  ],
+  catchAsync(getNextSeasonNumber)
+);
 
 module.exports = router;
