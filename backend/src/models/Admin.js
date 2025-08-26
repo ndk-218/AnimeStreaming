@@ -1,32 +1,35 @@
-// @ts-nocheck
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
 // ===== SIMPLE ADMIN SCHEMA =====
 const adminSchema = new mongoose.Schema(
   {
-    email: { 
-      type: String, 
-      required: true, 
+    email: {
+      type: String,
+      required: true,
       unique: true,
       lowercase: true,
       trim: true
     },
-    password: { 
-      type: String, 
+    password: {
+      type: String,
+      required: true
+    },
+    displayName: {
+      type: String,
       required: true,
-      minlength: 6
+      trim: true
     },
-    displayName: { 
-      type: String, 
-      required: true, 
-      trim: true 
+    role: {
+      type: String,
+      enum: ['admin', 'super_admin'],
+      default: 'admin'
     },
-    isActive: { 
-      type: Boolean, 
-      default: true 
+    isActive: {
+      type: Boolean,
+      default: true
     },
-    lastLoginAt: Date
+    lastLogin: Date
   },
   {
     timestamps: true,
@@ -34,20 +37,22 @@ const adminSchema = new mongoose.Schema(
   }
 );
 
-// ===== BASIC INDEXES =====
-adminSchema.index({ email: 1 });
+// ===== INDEXES (Remove duplicates) =====
+// adminSchema.index({ email: 1 }); // Removed - already unique
+adminSchema.index({ role: 1 });
+adminSchema.index({ isActive: 1 });
 
-// ===== ESSENTIAL METHODS ONLY =====
+// ===== PASSWORD METHODS =====
 adminSchema.methods.setPassword = async function(password) {
-  this.password = await bcrypt.hash(password, 10);
-  return this;
+  const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
+  this.password = await bcrypt.hash(password, saltRounds);
 };
 
-adminSchema.methods.checkPassword = async function(password) {
+adminSchema.methods.comparePassword = async function(password) {
   return bcrypt.compare(password, this.password);
 };
 
-// Hide password in JSON
+// ===== HIDE PASSWORD IN JSON =====
 adminSchema.methods.toJSON = function() {
   const admin = this.toObject();
   delete admin.password;

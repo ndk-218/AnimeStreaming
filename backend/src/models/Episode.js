@@ -18,14 +18,14 @@ const episodeSchema = new mongoose.Schema(
     seriesId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Series',
-      required: true,
-      index: true
+      required: true
+      // Removed index: true to avoid duplicate
     },
     seasonId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Season',
-      required: true,
-      index: true
+      required: true
+      // Removed index: true to avoid duplicate
     },
     episodeNumber: {
       type: Number,
@@ -59,9 +59,10 @@ const episodeSchema = new mongoose.Schema(
   }
 );
 
-// ===== BASIC INDEXES =====
+// ===== INDEXES (Clean, no duplicates) =====
 episodeSchema.index({ seasonId: 1, episodeNumber: 1 }, { unique: true });
 episodeSchema.index({ processingStatus: 1 });
-episodeSchema.index({ seriesId: 1 });
+episodeSchema.index({ seriesId: 1 }); // Only define once here
+episodeSchema.index({ viewCount: -1 });
 
 module.exports = mongoose.model('Episode', episodeSchema);

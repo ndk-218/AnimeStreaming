@@ -40,9 +40,9 @@ const processingJobSchema = new mongoose.Schema(
   }
 );
 
-// ===== BASIC INDEXES =====
-processingJobSchema.index({ episodeId: 1 });
-processingJobSchema.index({ status: 1 });
+// ===== INDEXES (Remove duplicates) =====
+// processingJobSchema.index({ episodeId: 1 }); // Removed - already defined above
+// processingJobSchema.index({ status: 1 }); // Removed - already defined above
 processingJobSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('ProcessingJob', processingJobSchema);

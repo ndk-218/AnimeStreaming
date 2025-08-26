@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// ===== SUPER SIMPLE SERIES SCHEMA =====
+// ===== SIMPLE SERIES SCHEMA =====
 const seriesSchema = new mongoose.Schema(
   {
     title: { 
@@ -50,10 +50,12 @@ const seriesSchema = new mongoose.Schema(
   }
 );
 
-// ===== BASIC INDEXES =====
+// ===== INDEXES (Remove duplicates) =====
 seriesSchema.index({ title: 'text' });
-seriesSchema.index({ slug: 1 });
+// seriesSchema.index({ slug: 1 }); // Removed - already unique
 seriesSchema.index({ genres: 1 });
+seriesSchema.index({ status: 1 });
+seriesSchema.index({ viewCount: -1 });
 
 // ===== AUTO SLUG GENERATION =====
 seriesSchema.pre('save', function(next) {

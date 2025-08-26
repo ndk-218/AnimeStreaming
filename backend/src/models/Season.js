@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// ===== UPDATED SEASON SCHEMA =====
+// ===== SIMPLE SEASON SCHEMA =====
 const seasonSchema = new mongoose.Schema(
   {
     seriesId: {
@@ -47,10 +47,9 @@ const seasonSchema = new mongoose.Schema(
   }
 );
 
-// ===== UPDATED INDEXES =====
-// Cho phép multiple movies với cùng series
-// Movie được đánh số theo year thay vì sequential number
+// ===== INDEXES (Remove duplicates) =====
 seasonSchema.index({ seriesId: 1, seasonNumber: 1, seasonType: 1 }, { unique: true });
+// seasonSchema.index({ seriesId: 1 }); // Removed - covered by compound index above
 seasonSchema.index({ status: 1 });
 seasonSchema.index({ seasonType: 1 });
 
