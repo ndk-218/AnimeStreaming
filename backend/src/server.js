@@ -15,7 +15,7 @@ const dotenv = require('dotenv');
 require('express-async-errors');
 
 // Database
-const { connectDatabase, DatabaseUtils } = require('./models');
+const { connectDatabase } = require('./models');
 
 // Import routes
 const apiRoutes = require('./routes');
@@ -98,125 +98,122 @@ app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// ===== STATIC FILE SERVING =====
+// Static file serving cho HLS streaming
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-// Ensure upload directories exist
-const ensureUploadDirs = async () => {
-  const dirs = [
-    'uploads/videos',
-    'uploads/images',
-    'uploads/subtitles',
-    'temp/videos',
-    'temp/subtitles',
-    'temp/images'
-  ];
+// ===== SOCKET.IO SETUP =====
+io.on('connection', (socket) => {
+  console.log('📱 Client connected:', socket.id);
   
-  for (const dir of dirs) {
-    await fs.ensureDir(path.join(__dirname, '..', dir));
-  }
-};
-
-ensureUploadDirs().catch(console.error);
-
-// Serve HLS video files with proper headers
-app.use('/stream', express.static(path.join(__dirname, '../uploads/videos'), {
-  setHeaders: (res, filePath) => {
-    const ext = path.extname(filePath);
-    
-    if (ext === '.m3u8') {
-      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    } else if (ext === '.ts') {
-      res.setHeader('Content-Type', 'video/mp2t');
-      res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year
-    }
-    
-    // Enable range requests for video streaming
-    res.setHeader('Accept-Ranges', 'bytes');
-  }
-}));
-
-// Serve uploaded images/thumbnails
-app.use('/images', express.static(path.join(__dirname, '../uploads/images'), {
-  setHeaders: (res) => {
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 day
-  }
-}));
-
-// ===== API ROUTES =====
-
-// Health check ở root level
-app.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Anime Streaming Server is running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0'
+  socket.on('disconnect', () => {
+    console.log('📱 Client disconnected:', socket.id);
+  });
+  
+  // Join room cho video processing updates
+  socket.on('join-processing', (episodeId) => {
+    socket.join(`processing-${episodeId}`);
+    console.log(`📱 Client joined processing room: ${episodeId}`);
   });
 });
 
-// Mount API routes với /api prefix
+// Make io available to controllers
+app.set('socketio', io);
+
+// ===== ROUTES SETUP =====
 app.use('/api', apiRoutes);
 
-// ===== SOCKET.IO SETUP =====
-
-io.on('connection', (socket) => {
-  console.log(`🔌 User connected: ${socket.id}`);
-  
-  // Handle admin authentication for processing updates
-  socket.on('admin_auth', (data) => {
-    // TODO: Verify admin JWT token
-    socket.join('admin_room');
-    console.log(`👤 Admin joined: ${socket.id}`);
-  });
-  
-  // Handle video processing room join
-  socket.on('join_processing_room', (data) => {
-    const { jobId } = data;
-    socket.join(`processing_${jobId}`);
-    console.log(`📺 Joined processing room: ${jobId}`);
-  });
-  
-  socket.on('disconnect', () => {
-    console.log(`🔌 User disconnected: ${socket.id}`);
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: '🎌 Anime Streaming Platform API',
+    version: '1.0.0',
+    documentation: '/api/health',
+    endpoints: {
+      api: '/api',
+      health: '/api/health',
+      series: '/api/series',
+      seasons: '/api/seasons',
+      episodes: '/api/episodes',
+      admin: '/api/admin'
+    }
   });
 });
 
 // ===== ERROR HANDLING =====
-
-// 404 handler for non-API routes
 app.use(notFound);
-
-// Global error handler
 app.use(globalErrorHandler);
 
-// ===== DATABASE CONNECTION & SERVER START =====
+// ===== GRACEFUL SHUTDOWN =====
+const gracefulShutdown = async (signal) => {
+  console.log(`\n🔄 ${signal} signal received. Starting graceful shutdown...`);
+  
+  try {
+    // Close server
+    server.close(() => {
+      console.log('🔒 HTTP server closed');
+    });
+    
+    // Close socket.io
+    io.close();
+    console.log('🔒 Socket.IO server closed');
+    
+    // Close database connection (if needed)
+    // await mongoose.connection.close();
+    // console.log('🔒 Database connection closed');
+    
+    console.log('✅ Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error);
+    process.exit(1);
+  }
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+// ===== START SERVER =====
+const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
-    // Connect to MongoDB
-    console.log('🔌 Connecting to MongoDB...');
-    await connectDatabase(process.env.MONGODB_URI);
+    // Connect to database
+    await connectDatabase();
+    console.log('✅ Database connected successfully');
     
-    // Seed default admin user if needed
-    await DatabaseUtils.seedAdminUser();
-    
-    // Get database stats
-    const stats = await DatabaseUtils.getStats();
-    console.log('📊 Database stats:', stats);
+    // Ensure upload directories exist
+    const { ensureUploadDirs } = require('./middleware/upload');
+    await ensureUploadDirs();
+    console.log('✅ Upload directories initialized');
     
     // Start server
-    const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`📺 API endpoints available at http://localhost:${PORT}/api`);
-      console.log(`🎬 Video streaming at http://localhost:${PORT}/stream`);
-      console.log(`🖼️ Images at http://localhost:${PORT}/images`);
+      console.log(`
+🚀 =================================
+   🎌 ANIME STREAMING API STARTED
+   📍 Environment: ${process.env.NODE_ENV || 'development'}
+   🌐 Server running on port: ${PORT}
+   🔗 URL: http://localhost:${PORT}
+   📊 Health check: http://localhost:${PORT}/api/health
+   🎯 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}
+🚀 =================================
+      `);
     });
     
   } catch (error) {
@@ -225,31 +222,5 @@ const startServer = async () => {
   }
 };
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled Promise Rejection:', err);
-  console.log('🔄 Shutting down server...');
-  server.close(() => {
-    process.exit(1);
-  });
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err);
-  console.log('🔄 Shutting down server...');
-  process.exit(1);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('🔄 SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('✅ Process terminated');
-  });
-});
-
 // Start the server
 startServer();
-
-module.exports = app;

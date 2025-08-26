@@ -18,7 +18,7 @@ module.exports = {
   SeriesService,
   SeasonService,
   EpisodeService
-  // VideoProcessingService,
-  // AdminService,
-  // SocketService
+  // VideoProcessingService, (Phase 2)
+  // AdminService, (Phase 2)
+  // SocketService (Phase 2)
 };
