@@ -193,8 +193,8 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
-    // Connect to database
-    await connectDatabase();
+    // Connect to database with URI from environment
+    await connectDatabase(process.env.MONGODB_URI);
     console.log('✅ Database connected successfully');
     
     // Ensure upload directories exist

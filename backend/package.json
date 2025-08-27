@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "start:prod": "NODE_ENV=production node src/server.js",
     "test": "jest",
+    "test:db": "node test-connection.js",
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix"
   },

@@ -20,6 +20,11 @@ module.exports = {
 // ===== ENHANCED DATABASE CONNECTION =====
 const connectDatabase = async (uri) => {
   try {
+    // Check if URI is provided
+    if (!uri) {
+      throw new Error('MongoDB URI is required');
+    }
+    
     console.log('🔌 Connecting to MongoDB...');
     console.log(`📍 Database URI: ${uri.replace(/\/\/[^:]*:[^@]*@/, '//***:***@')}`); // Hide credentials
     
