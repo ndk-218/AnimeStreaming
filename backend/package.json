@@ -9,6 +9,9 @@
     "start:prod": "NODE_ENV=production node src/server.js",
     "test": "jest",
     "test:db": "node test-connection.js",
+    "create:admin": "node create-admin.js",
+    "test:episode": "node create-test-episode.js",
+    "cleanup": "node cleanup-test-data.js",
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix"
   },
