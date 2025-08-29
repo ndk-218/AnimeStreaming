@@ -1,56 +1,109 @@
 const mongoose = require('mongoose');
 
-// ===== SIMPLE SEASON SCHEMA =====
-const seasonSchema = new mongoose.Schema(
-  {
-    seriesId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Series',
-      required: true,
-      index: true
-    },
-    title: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    seasonNumber: {
-      type: Number,
-      required: true,
-      min: 0
-    },
-    seasonType: {
-      type: String,
-      enum: ['tv', 'movie', 'ova', 'special'],
-      default: 'tv'
-    },
-    releaseYear: {
-      type: Number,
-      min: 1900,
-      max: new Date().getFullYear() + 5
-    },
-    description: String,
-    posterImage: String,
-    episodeCount: {
-      type: Number,
-      default: 0
-    },
-    status: {
-      type: String,
-      enum: ['upcoming', 'airing', 'completed'],
-      default: 'upcoming'
-    }
+const seasonSchema = new mongoose.Schema({
+  seriesId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Series',
+    required: true,
+    index: true
   },
-  {
-    timestamps: true,
-    versionKey: false
+  title: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 100
+  },
+  seasonNumber: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  seasonType: {
+    type: String,
+    enum: ['tv', 'movie', 'ova', 'special'],
+    required: true,
+    default: 'tv'
+  },
+  releaseYear: {
+    type: Number,
+    required: true,
+    min: 1900,
+    max: new Date().getFullYear() + 10
+  },
+  description: {
+    type: String,
+    trim: true,
+    maxlength: 1000
+  },
+  
+  // Studio and Genre relationships - moved from Series
+  studios: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Studio'
+  }],
+  genres: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Genre'
+  }],
+  
+  // Season status
+  status: {
+    type: String,
+    enum: ['upcoming', 'airing', 'completed', 'cancelled'],
+    default: 'upcoming'
+  },
+  
+  // Episode count - calculated automatically
+  episodeCount: {
+    type: Number,
+    default: 0
+  },
+  
+  // Images - will be implemented in Priority 3
+  posterImage: String,
+  thumbnailImage: String,
+  
+  // Metadata
+  viewCount: {
+    type: Number,
+    default: 0
+  },
+  rating: {
+    type: Number,
+    min: 0,
+    max: 10,
+    default: 0
   }
-);
+}, {
+  timestamps: true
+});
 
-// ===== INDEXES (Remove duplicates) =====
-seasonSchema.index({ seriesId: 1, seasonNumber: 1, seasonType: 1 }, { unique: true });
-// seasonSchema.index({ seriesId: 1 }); // Removed - covered by compound index above
-seasonSchema.index({ status: 1 });
-seasonSchema.index({ seasonType: 1 });
+// Compound indexes for efficient queries
+seasonSchema.index({ seriesId: 1, seasonNumber: 1, seasonType: 1 });
+seasonSchema.index({ seriesId: 1, createdAt: -1 });
+seasonSchema.index({ releaseYear: 1, seasonType: 1 });
+
+// Virtual for episodes
+seasonSchema.virtual('episodes', {
+  ref: 'Episode',
+  localField: '_id',
+  foreignField: 'seasonId'
+});
+
+// Virtual for populated studios
+seasonSchema.virtual('studioNames').get(function() {
+  if (this.populated('studios')) {
+    return this.studios.map(studio => studio.name);
+  }
+  return [];
+});
+
+// Virtual for populated genres
+seasonSchema.virtual('genreNames').get(function() {
+  if (this.populated('genres')) {
+    return this.genres.map(genre => genre.name);
+  }
+  return [];
+});
 
 module.exports = mongoose.model('Season', seasonSchema);
