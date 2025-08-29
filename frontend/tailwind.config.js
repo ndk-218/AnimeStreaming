@@ -6,22 +6,22 @@ export default {
   ],
   theme: {
     extend: {
-      // Custom colors cho video platform
       colors: {
-        'video-dark': '#0f0f0f',
-        'video-gray': '#1a1a1a',
-        'video-light': '#2d2d2d',
+        primary: {
+          50: '#f0f9ff',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
+          900: '#1e3a8a',
+        },
+        dark: {
+          800: '#1f2937',
+          900: '#111827',
+        }
       },
-      // Custom spacing cho video components
-      spacing: {
-        '128': '32rem',
-        '144': '36rem',
-      },
-      // Aspect ratios cho video player
-      aspectRatio: {
-        '16/9': '16 / 9',
-        '4/3': '4 / 3',
-      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      }
     },
   },
   plugins: [],
