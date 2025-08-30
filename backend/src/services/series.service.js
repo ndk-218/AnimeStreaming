@@ -1,496 +1,227 @@
-// @ts-nocheck
 const Series = require('../models/Series');
 const Season = require('../models/Season');
-const Episode = require('../models/Episode');
 
-/**
- * ===== SERIES SERVICE - JAVASCRIPT VERSION =====
- * Quản lý anime series chính
- */
 class SeriesService {
-
-  /**
-   * Tạo series mới với slug generation
-   */
-  static async createSeries(data) {
-    try {
-      // Validate dữ liệu đầu vào
-      if (!data.title) {
-        throw new Error('Title is required');
-      }
-
-      // Generate unique slug
-      const baseSlug = this.generateSlug(data.title);
-      const uniqueSlug = await this.ensureUniqueSlug(baseSlug);
-
-      // Tạo series mới
-      const series = await Series.create({
-        title: data.title,
-        originalTitle: data.originalTitle || '',
-        slug: uniqueSlug,
-        description: data.description || '',
-        releaseYear: data.releaseYear,
-        status: data.status || 'upcoming',
-        genres: data.genres || [],
-        studio: data.studio || '',
-        posterImage: data.posterImage || '',
-        bannerImage: data.bannerImage || ''
-      });
-
-      console.log(`✅ Series created: ${series.title} (Slug: ${series.slug})`);
-      return series;
-
-    } catch (error) {
-      console.error('❌ Error creating series:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Lấy series với full details (seasons + episodes)
-   */
-  static async getSeriesWithDetails(seriesId) {
-    try {
-      const series = await Series.findById(seriesId);
-      if (!series) {
-        return null;
-      }
-
-      // Lấy seasons thuộc series này
-      const seasons = await Season.find({ seriesId: seriesId })
-        .select('title seasonNumber seasonType releaseYear description posterImage episodeCount status')
-        .sort({ seasonNumber: 1 });
-
-      // Lấy episodes cho từng season
-      const seasonsWithEpisodes = await Promise.all(
-        seasons.map(async (season) => {
-          const episodes = await Episode.find({
-            seasonId: season._id,
-            processingStatus: 'completed'
-          })
-          .select('episodeNumber title duration thumbnail hlsPath')
-          .sort({ episodeNumber: 1 });
-
-          const seasonObj = season.toObject();
-          seasonObj.episodes = episodes;
-          seasonObj.availableEpisodes = episodes.length;
-          
-          return seasonObj;
-        })
-      );
-
-      // Combine tất cả thông tin
-      const seriesWithDetails = series.toObject();
-      seriesWithDetails.seasons = seasonsWithEpisodes;
-      seriesWithDetails.totalSeasons = seasons.length;
-      seriesWithDetails.totalEpisodes = seasonsWithEpisodes.reduce(
-        (sum, season) => sum + season.availableEpisodes, 0
-      );
-
-      return seriesWithDetails;
-
-    } catch (error) {
-      console.error('❌ Error getting series with details:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Lấy series by slug
-   */
-  static async getSeriesBySlug(slug) {
-    try {
-      const series = await this.getSeriesWithDetails(
-        await Series.findOne({ slug }).select('_id')
-      );
-
-      return series;
-
-    } catch (error) {
-      console.error('❌ Error getting series by slug:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Lấy danh sách series với filtering và pagination
-   */
-  static async getSeriesList(options = {}) {
+  // Get series with filtering and pagination
+  async getSeries(options = {}) {
     try {
       const {
+        page = 1,
+        limit = 20,
         search = '',
         genres = [],
         status = '',
         studio = '',
         year = null,
-        page = 1,
-        limit = 20,
-        sortBy = 'createdAt',
-        sortOrder = 'desc'
+        sort = 'recent'
       } = options;
 
       // Build query
       const query = {};
-
-      // Search by title
+      
       if (search) {
-        query.$or = [
-          { title: { $regex: search, $options: 'i' } },
-          { originalTitle: { $regex: search, $options: 'i' } }
-        ];
+        query.$text = { $search: search };
       }
-
-      // Filter by genres
-      if (genres.length > 0) {
-        query.genres = { $in: genres };
-      }
-
-      // Filter by status
+      
       if (status) {
         query.status = status;
       }
-
-      // Filter by studio
-      if (studio) {
-        query.studio = { $regex: studio, $options: 'i' };
-      }
-
-      // Filter by year
+      
       if (year) {
         query.releaseYear = year;
       }
 
-      // Pagination
-      const skip = (page - 1) * limit;
-      const sortOptions = {};
-      sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+      // Build sort
+      let sortQuery = {};
+      switch (sort) {
+        case 'popular':
+          sortQuery = { viewCount: -1 };
+          break;
+        case 'title':
+          sortQuery = { title: 1 };
+          break;
+        case 'year':
+          sortQuery = { releaseYear: -1 };
+          break;
+        case 'recent':
+        default:
+          sortQuery = { createdAt: -1 };
+          break;
+      }
 
-      // Execute query
-      const [seriesList, total] = await Promise.all([
+      if (search) {
+        sortQuery = { score: { $meta: 'textScore' } };
+      }
+
+      const skip = (page - 1) * limit;
+
+      const [series, total] = await Promise.all([
         Series.find(query)
-          .select('title originalTitle slug description releaseYear status genres studio posterImage bannerImage viewCount')
-          .sort(sortOptions)
+          .sort(sortQuery)
           .skip(skip)
-          .limit(limit),
+          .limit(limit)
+          .lean(),
         Series.countDocuments(query)
       ]);
 
       return {
-        series: seriesList,
+        success: true,
+        data: series,
         pagination: {
           current: page,
           total: Math.ceil(total / limit),
-          limit: limit,
-          count: total
-        }
+          limit,
+          count: series.length
+        },
+        filters: { search, genres, status, studio, year }
       };
-
     } catch (error) {
-      console.error('❌ Error getting series list:', error.message);
-      throw error;
+      console.error('Get series error:', error);
+      throw { success: false, error: 'Failed to fetch series' };
     }
   }
 
-  /**
-   * Cập nhật series
-   */
-  static async updateSeries(seriesId, updateData) {
+  // Get series by slug with seasons populated
+  async getSeriesBySlug(slug) {
     try {
-      const series = await Series.findById(seriesId);
+      const series = await Series.findOne({ slug })
+        .populate({
+          path: 'seasons',
+          populate: {
+            path: 'studios genres',
+            select: 'name'
+          },
+          options: { sort: { seasonNumber: 1, seasonType: 1 } }
+        })
+        .lean();
+
       if (!series) {
-        throw new Error('Series not found');
+        return { success: false, error: 'Series not found' };
       }
 
-      // Nếu title thay đổi, cập nhật slug
-      if (updateData.title && updateData.title !== series.title) {
-        const baseSlug = this.generateSlug(updateData.title);
-        updateData.slug = await this.ensureUniqueSlug(baseSlug, seriesId);
+      // Increment view count
+      await Series.findByIdAndUpdate(series._id, { $inc: { viewCount: 1 } });
+
+      return { success: true, data: series };
+    } catch (error) {
+      console.error('Get series by slug error:', error);
+      throw { success: false, error: 'Failed to fetch series' };
+    }
+  }
+
+  // Create new series
+  async createSeries(seriesData) {
+    try {
+      // Validate required fields
+      if (!seriesData.title?.trim()) {
+        return { success: false, error: 'Series title is required' };
       }
 
-      // Cập nhật các trường được phép
-      const allowedFields = [
-        'title', 'originalTitle', 'slug', 'description', 
-        'releaseYear', 'status', 'genres', 'studio', 
-        'posterImage', 'bannerImage'
-      ];
+      if (!seriesData.releaseYear) {
+        return { success: false, error: 'Release year is required' };
+      }
 
-      allowedFields.forEach(field => {
-        if (updateData[field] !== undefined) {
-          series[field] = updateData[field];
-        }
+      // Check for duplicate title
+      const existing = await Series.findOne({ 
+        title: { $regex: `^${seriesData.title.trim()}$`, $options: 'i' }
       });
 
+      if (existing) {
+        return { success: false, error: 'Series with this title already exists' };
+      }
+
+      const series = new Series(seriesData);
       await series.save();
-      
-      console.log(`📺 Series updated: ${series.title}`);
-      return series;
 
+      return { success: true, data: series };
     } catch (error) {
-      console.error('❌ Error updating series:', error.message);
-      throw error;
+      console.error('Create series error:', error);
+      
+      if (error.code === 11000) {
+        return { success: false, error: 'Series already exists' };
+      }
+      
+      throw { success: false, error: 'Failed to create series' };
     }
   }
 
-  /**
-   * Xóa series (chỉ khi không có seasons/episodes)
-   */
-  static async deleteSeries(seriesId) {
-    try {
-      const series = await Series.findById(seriesId);
-      if (!series) {
-        return false;
-      }
-
-      // Kiểm tra có seasons không
-      const seasonCount = await Season.countDocuments({ seriesId: seriesId });
-      if (seasonCount > 0) {
-        throw new Error('Cannot delete series that contains seasons. Delete seasons first.');
-      }
-
-      await Series.findByIdAndDelete(seriesId);
-      
-      console.log(`✅ Series deleted: ${series.title}`);
-      return true;
-
-    } catch (error) {
-      console.error('❌ Error deleting series:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Tăng view count cho series
-   */
-  static async incrementViewCount(seriesId) {
+  // Update series
+  async updateSeries(id, updates) {
     try {
       const series = await Series.findByIdAndUpdate(
-        seriesId,
-        { $inc: { viewCount: 1 } },
-        { new: true }
+        id,
+        { ...updates, updatedAt: new Date() },
+        { new: true, runValidators: true }
       );
 
-      return series;
+      if (!series) {
+        return { success: false, error: 'Series not found' };
+      }
 
+      return { success: true, data: series };
     } catch (error) {
-      console.error('❌ Error incrementing view count:', error.message);
-      throw error;
+      console.error('Update series error:', error);
+      throw { success: false, error: 'Failed to update series' };
     }
   }
 
-  /**
-   * Lấy series trending (nhiều views nhất)
-   */
-  static async getTrendingSeries(limit = 10) {
+  // Delete series and all related data
+  async deleteSeries(id) {
     try {
-      const series = await Series.find({
-        status: { $in: ['ongoing', 'completed'] }
-      })
-      .select('title slug description releaseYear genres studio posterImage viewCount')
-      .sort({ viewCount: -1 })
-      .limit(limit);
+      const series = await Series.findById(id);
+      
+      if (!series) {
+        return { success: false, error: 'Series not found' };
+      }
 
-      return series;
+      // TODO: Delete all seasons and episodes (implement when needed)
+      await Series.findByIdAndDelete(id);
 
+      return { success: true, message: 'Series deleted successfully' };
     } catch (error) {
-      console.error('❌ Error getting trending series:', error.message);
-      throw error;
+      console.error('Delete series error:', error);
+      throw { success: false, error: 'Failed to delete series' };
     }
   }
 
-  /**
-   * Lấy series mới nhất
-   */
-  static async getLatestSeries(limit = 10) {
+  // Get recent series for upload interface
+  async getRecentSeries(limit = 10) {
     try {
       const series = await Series.find()
-        .select('title slug description releaseYear genres studio posterImage status')
-        .sort({ createdAt: -1 })
-        .limit(limit);
+        .sort({ updatedAt: -1 })
+        .limit(limit)
+        .select('title originalTitle releaseYear status createdAt updatedAt')
+        .lean();
 
-      return series;
-
+      return { success: true, data: series };
     } catch (error) {
-      console.error('❌ Error getting latest series:', error.message);
-      throw error;
+      console.error('Get recent series error:', error);
+      throw { success: false, error: 'Failed to fetch recent series' };
     }
   }
 
-  /**
-   * Lấy series theo genre
-   */
-  static async getSeriesByGenre(genre, limit = 20) {
+  // Search series for admin interface
+  async searchSeries(query, limit = 10) {
     try {
+      if (!query.trim()) return [];
+
       const series = await Series.find({
-        genres: { $in: [genre] }
-      })
-      .select('title slug description releaseYear genres studio posterImage viewCount')
-      .sort({ viewCount: -1 })
-      .limit(limit);
-
-      return series;
-
-    } catch (error) {
-      console.error('❌ Error getting series by genre:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Lấy tất cả genres có sẵn
-   */
-  static async getAllGenres() {
-    try {
-      const genres = await Series.distinct('genres');
-      
-      // Đếm số series cho mỗi genre
-      const genreStats = await Promise.all(
-        genres.map(async (genre) => {
-          const count = await Series.countDocuments({
-            genres: { $in: [genre] }
-          });
-          
-          return {
-            name: genre,
-            count: count
-          };
-        })
-      );
-
-      // Sort theo số lượng series
-      genreStats.sort((a, b) => b.count - a.count);
-
-      return genreStats;
-
-    } catch (error) {
-      console.error('❌ Error getting all genres:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Lấy tất cả studios có sẵn
-   */
-  static async getAllStudios() {
-    try {
-      const studios = await Series.distinct('studio');
-      
-      // Lọc bỏ empty strings
-      const validStudios = studios.filter(studio => studio && studio.trim());
-
-      // Đếm số series cho mỗi studio
-      const studioStats = await Promise.all(
-        validStudios.map(async (studio) => {
-          const count = await Series.countDocuments({ studio: studio });
-          
-          return {
-            name: studio,
-            count: count
-          };
-        })
-      );
-
-      // Sort theo số lượng series
-      studioStats.sort((a, b) => b.count - a.count);
-
-      return studioStats;
-
-    } catch (error) {
-      console.error('❌ Error getting all studios:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Lấy thống kê series
-   */
-  static async getSeriesStats() {
-    try {
-      const stats = await Series.aggregate([
-        {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 }
-          }
-        }
-      ]);
-
-      const totalSeries = await Series.countDocuments();
-      const totalViews = await Series.aggregate([
-        { $group: { _id: null, totalViews: { $sum: '$viewCount' } } }
-      ]);
-
-      return {
-        total: totalSeries,
-        byStatus: stats.reduce((acc, item) => {
-          acc[item._id] = item.count;
-          return acc;
-        }, {}),
-        totalViews: totalViews[0]?.totalViews || 0
-      };
-
-    } catch (error) {
-      console.error('❌ Error getting series stats:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Helper: Generate slug từ title
-   */
-  static generateSlug(title) {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
-      .replace(/\s+/g, '-') // Replace spaces with hyphens
-      .replace(/-+/g, '-') // Replace multiple hyphens with single
-      .trim('-'); // Remove leading/trailing hyphens
-  }
-
-  /**
-   * Helper: Ensure unique slug
-   */
-  static async ensureUniqueSlug(baseSlug, excludeId = null) {
-    let slug = baseSlug;
-    let counter = 0;
-
-    while (true) {
-      const query = { slug: slug };
-      if (excludeId) {
-        query._id = { $ne: excludeId };
-      }
-
-      const existingSeries = await Series.findOne(query);
-      
-      if (!existingSeries) {
-        return slug;
-      }
-
-      counter++;
-      slug = `${baseSlug}-${counter}`;
-    }
-  }
-
-  /**
-   * Search suggestions cho autocomplete
-   */
-  static async getSearchSuggestions(term, limit = 5) {
-    try {
-      const suggestions = await Series.find({
         $or: [
-          { title: { $regex: term, $options: 'i' } },
-          { originalTitle: { $regex: term, $options: 'i' } }
+          { title: { $regex: query.trim(), $options: 'i' } },
+          { originalTitle: { $regex: query.trim(), $options: 'i' } }
         ]
       })
-      .select('title originalTitle slug')
-      .limit(limit);
+      .select('title originalTitle releaseYear status')
+      .sort({ updatedAt: -1 })
+      .limit(limit)
+      .lean();
 
-      return suggestions;
-
+      return series;
     } catch (error) {
-      console.error('❌ Error getting search suggestions:', error.message);
-      throw error;
+      console.error('Search series error:', error);
+      return [];
     }
   }
 }
 
-module.exports = SeriesService;
+module.exports = new SeriesService();

@@ -63,7 +63,7 @@ const seriesSchema = new mongoose.Schema({
 
 // Indexes for performance
 seriesSchema.index({ title: 'text', originalTitle: 'text', description: 'text' });
-seriesSchema.index({ slug: 1 });
+// Remove duplicate slug index since slug field already has unique: true
 seriesSchema.index({ releaseYear: 1, status: 1 });
 seriesSchema.index({ createdAt: -1 }); // For recent series
 seriesSchema.index({ viewCount: -1 }); // For popular series

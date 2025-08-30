@@ -28,7 +28,8 @@ const genreSchema = new mongoose.Schema({
 
 // Index for search performance
 genreSchema.index({ name: 'text' });
-genreSchema.index({ name: 1, isActive: 1 });
+// Remove duplicate name index since name field already has unique: true
+genreSchema.index({ isActive: 1 });
 
 // Virtual for search compatibility
 genreSchema.virtual('displayName').get(function() {

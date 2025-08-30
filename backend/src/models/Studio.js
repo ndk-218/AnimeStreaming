@@ -28,7 +28,8 @@ const studioSchema = new mongoose.Schema({
 
 // Index for search performance
 studioSchema.index({ name: 'text' });
-studioSchema.index({ name: 1, isActive: 1 });
+// Remove duplicate name index since name field already has unique: true
+studioSchema.index({ isActive: 1 });
 
 // Virtual for search compatibility
 studioSchema.virtual('displayName').get(function() {

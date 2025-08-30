@@ -36,7 +36,7 @@ router.post('/auth/login',
   catchAsync(login)
 );
 
-// Admin logout  
+// Admin logout 
 // POST /api/admin/auth/logout
 router.post('/auth/logout', 
   adminAuth,
@@ -125,7 +125,7 @@ router.get('/dashboard/stats',
  * ===== ADMIN USER MANAGEMENT =====
  */
 
-// Create new admin user (Super admin only)
+// Create new admin user
 // POST /api/admin/users
 router.post('/users',
   adminAuth,

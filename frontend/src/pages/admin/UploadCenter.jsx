@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../../services/api'
-import { studioService, genreService } from '../../services/contentService'
-import AutocompleteInput from '../../components/common/AutocompleteInput'
-import MultiSelectInput from '../../components/common/MultiSelectInput'
+import EnhancedSeriesSelection from '../../components/admin/EnhancedSeriesSelection'
 
 export default function UploadCenter() {
   const [currentStep, setCurrentStep] = useState(1)
@@ -118,7 +116,7 @@ export default function UploadCenter() {
         {/* Step Content */}
         <div className="bg-white rounded-xl shadow-lg p-8">
           {currentStep === 1 && (
-            <SeriesSelection
+            <EnhancedSeriesSelection
               uploadData={uploadData}
               setUploadData={setUploadData}
               onNext={() => setCurrentStep(2)}
