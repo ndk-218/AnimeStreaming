@@ -12,13 +12,38 @@ const SeasonService = require('../services/season.service');
  */
 const createSeason = async (req, res) => {
   try {
-    const { seriesId, title, seasonNumber, seasonType, releaseYear, description, posterImage } = req.body;
+    const { 
+      seriesId, 
+      title, 
+      seasonNumber, 
+      seasonType, 
+      releaseYear, 
+      description, 
+      status,
+      studios,  // Array of studio names
+      genres    // Array of genre names
+    } = req.body;
 
     // Validate dữ liệu đầu vào
     if (!seriesId || !seasonType) {
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: seriesId, seasonType'
+      });
+    }
+
+    // Validate studios và genres
+    if (!studios || !Array.isArray(studios) || studios.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one studio is required'
+      });
+    }
+
+    if (!genres || !Array.isArray(genres) || genres.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one genre is required'
       });
     }
 
@@ -51,7 +76,9 @@ const createSeason = async (req, res) => {
       seasonType: seasonType,
       releaseYear: releaseYear ? parseInt(releaseYear) : (seasonType === 'movie' ? finalSeasonNumber : null),
       description: description || '',
-      posterImage: posterImage || ''
+      status: status || 'upcoming',
+      studios: studios,  // Pass studios array
+      genres: genres     // Pass genres array
     };
 
     const season = await SeasonService.createSeason(seasonData);

@@ -12,7 +12,4 @@ router.post('/', adminAuth, seriesController.createSeries);
 router.put('/:id', adminAuth, seriesController.updateSeries);
 router.delete('/:id', adminAuth, seriesController.deleteSeries);
 
-// Admin utility routes
-router.get('/admin/recent', adminAuth, seriesController.getRecentSeries);
-
 module.exports = router;

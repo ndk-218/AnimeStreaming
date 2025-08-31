@@ -2,15 +2,17 @@
 const Season = require('../models/Season');
 const Episode = require('../models/Episode');
 const Series = require('../models/Series');
+const Studio = require('../models/Studio');
+const Genre = require('../models/Genre');
 
 /**
  * ===== SEASON SERVICE - JAVASCRIPT VERSION =====
- * Quản lý seasons: TV, Movies, OVAs, Specials
+ * Quản lý seasons: TV, Movies, OVAs, Specials với Studios và Genres
  */
 class SeasonService {
 
   /**
-   * Tạo season mới trong series
+   * Tạo season mới trong series với studios và genres
    */
   static async createSeason(data) {
     try {
@@ -50,6 +52,48 @@ class SeasonService {
         }
       }
 
+      // Process studios và genres
+      let studioIds = [];
+      let genreIds = [];
+
+      // Convert studio names to ObjectIds
+      if (data.studios && Array.isArray(data.studios)) {
+        const studioPromises = data.studios.map(async (studioName) => {
+          let studio = await Studio.findOne({ 
+            name: { $regex: `^${studioName.trim()}$`, $options: 'i' } 
+          });
+          
+          if (!studio) {
+            // Tạo studio mới nếu chưa có
+            studio = new Studio({ name: studioName.trim() });
+            await studio.save();
+            console.log(`📍 Created new studio: ${studioName}`);
+          }
+          
+          return studio._id;
+        });
+        studioIds = await Promise.all(studioPromises);
+      }
+
+      // Convert genre names to ObjectIds
+      if (data.genres && Array.isArray(data.genres)) {
+        const genrePromises = data.genres.map(async (genreName) => {
+          let genre = await Genre.findOne({ 
+            name: { $regex: `^${genreName.trim()}$`, $options: 'i' } 
+          });
+          
+          if (!genre) {
+            // Tạo genre mới nếu chưa có
+            genre = new Genre({ name: genreName.trim() });
+            await genre.save();
+            console.log(`🎭 Created new genre: ${genreName}`);
+          }
+          
+          return genre._id;
+        });
+        genreIds = await Promise.all(genrePromises);
+      }
+
       // Tạo season mới
       const season = await Season.create({
         seriesId: data.seriesId,
@@ -59,10 +103,30 @@ class SeasonService {
         releaseYear: data.releaseYear || (data.seasonType === 'movie' ? data.seasonNumber : null),
         description: data.description || '',
         posterImage: data.posterImage || '',
-        status: data.status || 'upcoming'
+        status: data.status || 'upcoming',
+        studios: studioIds,
+        genres: genreIds
       });
 
+      // Update studio và genre usage counts
+      if (studioIds.length > 0) {
+        await Studio.updateMany(
+          { _id: { $in: studioIds } },
+          { $inc: { seriesCount: 1 } }
+        );
+      }
+
+      if (genreIds.length > 0) {
+        await Genre.updateMany(
+          { _id: { $in: genreIds } },
+          { $inc: { seriesCount: 1 } }
+        );
+      }
+
       console.log(`✅ Season created: ${season.title} (Type: ${season.seasonType}, Number: ${season.seasonNumber})`);
+      console.log(`   Studios: ${data.studios?.join(', ') || 'None'}`);
+      console.log(`   Genres: ${data.genres?.join(', ') || 'None'}`);
+      
       return season;
 
     } catch (error) {
@@ -77,7 +141,9 @@ class SeasonService {
   static async getSeasonWithEpisodes(seasonId, onlyCompleted = true) {
     try {
       const season = await Season.findById(seasonId)
-        .populate('seriesId', 'title slug posterImage genres status');
+        .populate('seriesId', 'title slug posterImage status')
+        .populate('studios', 'name description')
+        .populate('genres', 'name description');
 
       if (!season) {
         return null;
@@ -107,12 +173,14 @@ class SeasonService {
   }
 
   /**
-   * Lấy tất cả seasons của một series
+   * Lấy tất cả seasons của một series với studios và genres
    */
   static async getSeasonsBySeries(seriesId, includeEpisodes = false) {
     try {
       const seasons = await Season.find({ seriesId })
-        .select('title seasonNumber seasonType releaseYear description posterImage episodeCount status')
+        .populate('studios', 'name')
+        .populate('genres', 'name')
+        .select('title seasonNumber seasonType releaseYear description posterImage episodeCount status studios genres')
         .sort({ seasonNumber: 1 });
 
       if (!includeEpisodes) {
@@ -159,6 +227,39 @@ class SeasonService {
       delete updateData.seriesId;
       delete updateData.seasonNumber;
 
+      // Process studios và genres nếu có trong updateData
+      if (updateData.studios && Array.isArray(updateData.studios)) {
+        const studioPromises = updateData.studios.map(async (studioName) => {
+          let studio = await Studio.findOne({ 
+            name: { $regex: `^${studioName.trim()}$`, $options: 'i' } 
+          });
+          
+          if (!studio) {
+            studio = new Studio({ name: studioName.trim() });
+            await studio.save();
+          }
+          
+          return studio._id;
+        });
+        updateData.studios = await Promise.all(studioPromises);
+      }
+
+      if (updateData.genres && Array.isArray(updateData.genres)) {
+        const genrePromises = updateData.genres.map(async (genreName) => {
+          let genre = await Genre.findOne({ 
+            name: { $regex: `^${genreName.trim()}$`, $options: 'i' } 
+          });
+          
+          if (!genre) {
+            genre = new Genre({ name: genreName.trim() });
+            await genre.save();
+          }
+          
+          return genre._id;
+        });
+        updateData.genres = await Promise.all(genrePromises);
+      }
+
       // Cập nhật các trường được phép
       const allowedFields = [
         'title', 
@@ -166,7 +267,9 @@ class SeasonService {
         'releaseYear', 
         'description', 
         'posterImage', 
-        'status'
+        'status',
+        'studios',
+        'genres'
       ];
 
       allowedFields.forEach(field => {
@@ -246,7 +349,9 @@ class SeasonService {
         seriesId: seriesId,
         seasonType: seasonType
       })
-      .select('title seasonNumber releaseYear description posterImage episodeCount status')
+      .populate('studios', 'name')
+      .populate('genres', 'name')
+      .select('title seasonNumber releaseYear description posterImage episodeCount status studios genres')
       .sort({ seasonNumber: 1 });
 
       return seasons;
@@ -266,7 +371,9 @@ class SeasonService {
         title: { $regex: searchTerm, $options: 'i' }
       })
       .populate('seriesId', 'title slug posterImage')
-      .select('title seasonNumber seasonType releaseYear description posterImage episodeCount')
+      .populate('studios', 'name')
+      .populate('genres', 'name')
+      .select('title seasonNumber seasonType releaseYear description posterImage episodeCount studios genres')
       .limit(limit);
 
       return seasons;
@@ -285,8 +392,10 @@ class SeasonService {
       const seasons = await Season.find({
         status: { $in: ['airing', 'completed'] }
       })
-      .populate('seriesId', 'title slug posterImage genres')
-      .select('title seasonNumber seasonType releaseYear posterImage episodeCount status')
+      .populate('seriesId', 'title slug posterImage')
+      .populate('studios', 'name')
+      .populate('genres', 'name')
+      .select('title seasonNumber seasonType releaseYear posterImage episodeCount status studios genres')
       .sort({ createdAt: -1 })
       .limit(limit);
 
@@ -368,7 +477,9 @@ class SeasonService {
         seriesId: seriesId,
         seasonNumber: seasonNumber
       })
-      .populate('seriesId', 'title slug');
+      .populate('seriesId', 'title slug')
+      .populate('studios', 'name')
+      .populate('genres', 'name');
 
       return season;
 
@@ -431,7 +542,9 @@ class SeasonService {
         seriesId: seriesId,
         seasonType: 'movie'
       })
-      .select('title seasonNumber releaseYear description posterImage episodeCount status')
+      .populate('studios', 'name')
+      .populate('genres', 'name')
+      .select('title seasonNumber releaseYear description posterImage episodeCount status studios genres')
       .sort({ seasonNumber: 1 }); // Sort by year
 
       return movies;

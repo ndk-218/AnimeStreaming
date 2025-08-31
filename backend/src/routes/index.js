@@ -7,6 +7,7 @@ const seasonsRoutes = require('./seasons');
 const episodesRoutes = require('./episodes');
 const adminRoutes = require('./admin');
 const contentRoutes = require('./content'); // New content management routes
+const adminContentRoutes = require('./adminContent'); // Admin content routes
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -26,8 +27,11 @@ router.use('/episodes', episodesRoutes);
 
 // Admin routes (protected)
 router.use('/admin', adminRoutes);
-
-// Content management routes (studios & genres)
 router.use('/admin', contentRoutes);
+router.use('/admin', adminContentRoutes); // Admin series/seasons routes
+
+// Test admin routes (temporary)
+const testAdminRoutes = require('./testAdmin');
+router.use('/admin', testAdminRoutes);
 
 module.exports = router;

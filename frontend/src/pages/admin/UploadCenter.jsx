@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../services/api'
 import EnhancedSeriesSelection from '../../components/admin/EnhancedSeriesSelection'
+import EnhancedSeasonSelection from '../../components/admin/EnhancedSeasonSelection'
 
 export default function UploadCenter() {
   const [currentStep, setCurrentStep] = useState(1)
@@ -126,12 +127,13 @@ export default function UploadCenter() {
           )}
           
           {currentStep === 2 && (
-            <SeasonSelection
+            <EnhancedSeasonSelection
               uploadData={uploadData}
               setUploadData={setUploadData}
               onNext={() => setCurrentStep(3)}
               onBack={() => setCurrentStep(1)}
               setError={setError}
+              setSuccess={setSuccess}
             />
           )}
           
@@ -408,34 +410,6 @@ function SeriesSelection({ uploadData, setUploadData, onNext, setError, setSucce
   )
 }
 
-// Season Selection Component (placeholder for next priority)
-function SeasonSelection({ uploadData, setUploadData, onNext, onBack, setError }) {
-  return (
-    <div>
-      <h2 className="text-2xl font-bold text-light-900 mb-6">Season Selection</h2>
-      <p className="text-light-600 mb-6">Selected Series: <strong>{uploadData.series?.title}</strong></p>
-      
-      <div className="text-center py-12">
-        <p className="text-light-500 mb-4">Season selection with image upload will be implemented in Priority 2</p>
-        <div className="space-x-4">
-          <button
-            onClick={onBack}
-            className="bg-light-200 hover:bg-light-300 text-light-700 px-6 py-3 rounded-lg"
-          >
-            Back
-          </button>
-          <button
-            onClick={onNext}
-            className="gradient-primary text-white px-6 py-3 rounded-lg"
-          >
-            Continue to Upload
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // Episode Upload Component (placeholder for next priority)
 function EpisodeUpload({ uploadData, setUploadData, onNext, onBack, setError, setSuccess }) {
   return (
@@ -444,19 +418,25 @@ function EpisodeUpload({ uploadData, setUploadData, onNext, onBack, setError, se
       <p className="text-light-600 mb-6">Selected Series: <strong>{uploadData.series?.title}</strong></p>
       
       <div className="text-center py-12">
-        <p className="text-light-500 mb-4">Episode upload with local file storage will be implemented in Priority 3</p>
-        <div className="space-x-4">
+        <p className="text-light-500 mb-6">Episode upload with local file storage will be implemented in Priority 3</p>
+        <div className="flex items-center justify-center space-x-4">
           <button
             onClick={onBack}
-            className="bg-light-200 hover:bg-light-300 text-light-700 px-6 py-3 rounded-lg"
+            className="bg-light-200 hover:bg-light-300 text-light-700 px-6 py-3 rounded-lg flex items-center"
           >
-            Back
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Season
           </button>
           <button
             onClick={onNext}
-            className="gradient-primary text-white px-6 py-3 rounded-lg"
+            className="gradient-primary text-white px-6 py-3 rounded-lg flex items-center"
           >
             Continue to Processing
+            <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
           </button>
         </div>
       </div>

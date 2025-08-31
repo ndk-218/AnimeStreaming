@@ -19,7 +19,7 @@ const {
   getNextSeasonNumber
 } = require('../controllers/seasons.controller');
 
-// Import middleware
+// Use temporary middleware to fix server startup
 const {
   adminAuth,
   optionalAuth,
@@ -32,7 +32,7 @@ const {
   validateSearch,
   validateRequest,
   catchAsync
-} = require('../middleware');
+} = require('../middleware/temp-backup');
 
 // Import additional validation from express-validator
 const { body, param, query } = require('express-validator');

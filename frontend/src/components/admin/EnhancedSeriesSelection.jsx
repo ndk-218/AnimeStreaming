@@ -185,21 +185,7 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
                   
                   <div className="text-xs text-gray-500 mb-3">
                     <span className="font-medium">{series.releaseYear}</span>
-                    {series.studio && <span className="text-indigo-600 ml-2">• {series.studio}</span>}
                   </div>
-                  
-                  {series.genres && series.genres.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {series.genres.slice(0, 3).map((genre, index) => (
-                        <span key={index} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md">
-                          {genre}
-                        </span>
-                      ))}
-                      {series.genres.length > 3 && (
-                        <span className="text-xs text-gray-400">+{series.genres.length - 3} more</span>
-                      )}
-                    </div>
-                  )}
                   
                   <div className="text-xs text-gray-400 border-t border-gray-100 pt-2">
                     Last updated: {new Date(series.updatedAt).toLocaleDateString()}
