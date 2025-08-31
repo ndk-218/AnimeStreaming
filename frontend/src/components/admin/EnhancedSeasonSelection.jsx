@@ -4,8 +4,8 @@ import { studioService, genreService } from '../../services/contentService'
 import MultiSelectInput from '../common/MultiSelectInput'
 
 // Enhanced Season Selection Component with Studio and Genres
-function EnhancedSeasonSelection({ uploadData, setUploadData, onNext, onBack, setError, setSuccess }) {
-  const [existingSeasons, setExistingSeasons] = useState([])
+function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons, onNext, onBack, setError, setSuccess }) {
+  const [existingSeasons, setExistingSeasons] = useState(prefetchedSeasons || [])
   const [showCreateNew, setShowCreateNew] = useState(false)
   const [newSeason, setNewSeason] = useState({
     title: '',
@@ -18,7 +18,7 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, onNext, onBack, se
     genres: []   // Array of genre names
   })
   const [loading, setLoading] = useState(false)
-  const [loadingSeasons, setLoadingSeasons] = useState(true)
+  const [loadingSeasons, setLoadingSeasons] = useState(!prefetchedSeasons)
 
   // Season type options
   const seasonTypeOptions = [
@@ -38,10 +38,13 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, onNext, onBack, se
 
   // Fetch existing seasons for this series
   useEffect(() => {
-    if (uploadData.series?._id) {
+    if (uploadData.series?._id && !prefetchedSeasons) {
       fetchExistingSeasons()
+    } else if (prefetchedSeasons) {
+      setExistingSeasons(prefetchedSeasons)
+      setLoadingSeasons(false)
     }
-  }, [uploadData.series])
+  }, [uploadData.series, prefetchedSeasons])
 
   // Auto-generate season title when seasonType or seasonNumber changes
   useEffect(() => {
@@ -160,8 +163,8 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, onNext, onBack, se
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <p className="text-indigo-800 font-medium">Selected Series: {uploadData.series?.title}</p>
-            <p className="text-indigo-600 text-sm">{uploadData.series?.originalTitle} • {uploadData.series?.releaseYear}</p>
+            <p className="text-indigo-800 font-medium">Selected Series: {uploadData.series?.title || 'None'}</p>
+            <p className="text-indigo-600 text-sm">{uploadData.series?.originalTitle || ''} • {uploadData.series?.releaseYear || ''}</p>
           </div>
         </div>
       </div>

@@ -88,7 +88,7 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
 
       const response = await api.post('/admin/series', seriesData)
       if (response.data.success) {
-        setUploadData(prev => ({ ...prev, series: response.data.data }))
+        setUploadData(response.data.data) // Pass series directly
         setSuccess(`Series "${response.data.data.title}" created successfully!`)
         // Auto proceed to next step after short delay
         setTimeout(() => {
@@ -161,12 +161,12 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
                 <div
                   key={series._id}
                   onClick={() => {
-                    setUploadData(prev => ({ ...prev, series }))
-                    setSuccess(`Selected series: "${series.title}"`)
-                    setTimeout(() => {
-                      setSuccess('')
-                      onNext()
-                    }, 1000)
+                  setUploadData(series) // Pass series directly
+                  setSuccess(`Selected series: "${series.title}"`)
+                  setTimeout(() => {
+                  setSuccess('')
+                  onNext()
+                  }, 1000)
                   }}
                   className="group p-5 border border-gray-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 cursor-pointer transition-all duration-200 hover:shadow-lg"
                 >

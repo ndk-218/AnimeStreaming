@@ -41,6 +41,51 @@ router.get('/studios/search', (req, res) => {
   });
 });
 
+router.post('/episodes', (req, res) => {
+  // Mock episode creation response
+  const { seriesId, seasonId, title, episodeNumber } = req.body;
+  
+  res.json({
+    success: true,
+    message: 'Episode upload endpoint working',
+    data: {
+      _id: '64f1a2b3c4d5e6f7a8b9c0d1',
+      seriesId,
+      seasonId, 
+      title,
+      episodeNumber: parseInt(episodeNumber),
+      processingStatus: 'pending',
+      createdAt: new Date()
+    },
+    processingId: 'proc_' + Date.now()
+  });
+});
+
+router.get('/episodes/season/:seasonId', (req, res) => {
+  // Mock episodes for season
+  const mockEpisodes = [
+    {
+      _id: '64f1a2b3c4d5e6f7a8b9c0d1',
+      episodeNumber: 1,
+      title: 'Episode 1',
+      duration: 1440, // 24 minutes
+      processingStatus: 'completed'
+    },
+    {
+      _id: '64f1a2b3c4d5e6f7a8b9c0d2', 
+      episodeNumber: 2,
+      title: 'Episode 2',
+      duration: 1380,
+      processingStatus: 'processing'
+    }
+  ];
+  
+  res.json({
+    success: true,
+    data: mockEpisodes
+  });
+});
+
 router.get('/genres/search', (req, res) => {
   const { q } = req.query;
   const mockGenres = [
