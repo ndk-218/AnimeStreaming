@@ -19,43 +19,36 @@ function ProcessingStatus({ uploadData, onComplete, setError }) {
     { key: 'completed', label: 'Processing Complete', description: 'Episode ready for streaming' }
   ]
 
-  // Simulate processing progress (since we don't have real backend processing yet)
+  // Simulate processing progress (realistic linear progression)
   useEffect(() => {
     if (uploadData.episode) {
-      simulateProcessing()
+      simulateRealisticProcessing()
     }
   }, [uploadData.episode])
 
-  const simulateProcessing = () => {
+  const simulateRealisticProcessing = () => {
+    let currentProgress = 0
     let currentStepIndex = 0
-    let progress = 0
+    const totalDuration = 30000 // 30 seconds total processing time
+    const updateInterval = 500 // Update every 500ms for smoother progress
+    const progressIncrement = 100 / (totalDuration / updateInterval) // Linear increment (~1.67% per update)
+    
+    const startTime = Date.now()
+    setEstimatedTime(30) // 30 seconds estimated
     
     const processInterval = setInterval(() => {
-      progress += Math.random() * 15 + 5 // Random progress 5-20%
+      // Linear progress increment with small random variation
+      currentProgress += progressIncrement + (Math.random() * 0.5 - 0.25) // ±0.25% variation
+      currentProgress = Math.min(Math.max(currentProgress, 0), 100) // Keep between 0-100%
       
-      if (progress >= 100) {
-        progress = 100
-        setProcessingStatus('completed')
-        setCurrentStep('Episode ready for streaming!')
-        setProcessingProgress(100)
-        clearInterval(processInterval)
-        
-        // Add completion log
-        setProcessingLogs(prev => [...prev, {
-          timestamp: new Date(),
-          level: 'success',
-          message: 'Episode processing completed successfully!'
-        }])
-        
-        return
-      }
+      // Update current step based on progress (only move forward)
+      const newStepIndex = Math.floor((currentProgress / 100) * (processingSteps.length - 1))
       
-      // Update current step
-      const stepIndex = Math.floor((progress / 100) * (processingSteps.length - 1))
-      if (stepIndex !== currentStepIndex) {
-        currentStepIndex = stepIndex
-        const step = processingSteps[stepIndex]
+      if (newStepIndex > currentStepIndex) {
+        currentStepIndex = newStepIndex
+        const step = processingSteps[currentStepIndex]
         setCurrentStep(step.description)
+        setProcessingStatus('processing')
         
         // Add step log
         setProcessingLogs(prev => [...prev, {
@@ -65,19 +58,32 @@ function ProcessingStatus({ uploadData, onComplete, setError }) {
         }])
       }
       
-      setProcessingProgress(progress)
+      // Update progress
+      setProcessingProgress(currentProgress)
       
-      // Update estimated time
-      if (progress > 10) {
-        const elapsed = Date.now() - startTime
-        const totalEstimated = (elapsed / progress) * 100
-        const remaining = totalEstimated - elapsed
-        setEstimatedTime(Math.max(0, Math.floor(remaining / 1000)))
+      // Update estimated time remaining
+      const elapsed = Date.now() - startTime
+      const totalEstimated = (elapsed / currentProgress) * 100
+      const remaining = Math.max(0, Math.floor((totalEstimated - elapsed) / 1000))
+      setEstimatedTime(remaining)
+      
+      // Check if complete
+      if (currentProgress >= 100) {
+        clearInterval(processInterval)
+        setProcessingProgress(100)
+        setProcessingStatus('completed')
+        setCurrentStep('Episode ready for streaming!')
+        setEstimatedTime(0)
+        
+        // Add completion log
+        setProcessingLogs(prev => [...prev, {
+          timestamp: new Date(),
+          level: 'success',
+          message: 'Episode processing completed successfully!'
+        }])
       }
       
-    }, 1000 + Math.random() * 2000) // Random interval 1-3 seconds
-    
-    const startTime = Date.now()
+    }, updateInterval)
     
     // Initial log
     setProcessingLogs([{
