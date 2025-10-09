@@ -177,11 +177,16 @@ class SeasonService {
    */
   static async getSeasonsBySeries(seriesId, includeEpisodes = false) {
     try {
+      console.log('🔍 SeasonService.getSeasonsBySeries called with seriesId:', seriesId);
+      
       const seasons = await Season.find({ seriesId })
         .populate('studios', 'name')
         .populate('genres', 'name')
         .select('title seasonNumber seasonType releaseYear description posterImage episodeCount status studios genres')
         .sort({ seasonNumber: 1 });
+      
+      console.log('📊 Found seasons count:', seasons.length);
+      console.log('📋 Season seriesIds:', seasons.map(s => ({ id: s._id, seriesId: s.seriesId })));
 
       if (!includeEpisodes) {
         return seasons;

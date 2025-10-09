@@ -50,15 +50,51 @@ class EpisodeService {
         episodeNumber: data.episodeNumber,
         title: data.title,
         description: data.description || '',
-        originalFile: data.originalFile,
+        originalFile: data.originalFile, // Temp file path
         processingStatus: 'pending'
       });
 
       console.log(`✅ Episode created: ${episode.title} (ID: ${episode._id})`);
+      
+      // Move file from temp to organized uploads folder
+      await this.organizeVideoFile(episode._id, data.originalFile);
+
       return episode;
 
     } catch (error) {
       console.error('❌ Error creating episode:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Organize video file: Move from temp to uploads/{episodeId}/
+   */
+  static async organizeVideoFile(episodeId, tempFilePath) {
+    try {
+      // Create organized directory structure
+      const episodeDir = path.join(process.cwd(), 'uploads', 'videos', episodeId.toString());
+      await fs.ensureDir(episodeDir);
+
+      // Get original filename and extension
+      const originalFilename = path.basename(tempFilePath);
+      const ext = path.extname(originalFilename);
+      const newFilename = `original${ext}`;
+      const newFilePath = path.join(episodeDir, newFilename);
+
+      // Move file from temp to uploads
+      await fs.move(tempFilePath, newFilePath, { overwrite: true });
+      console.log(`📦 Organized video file: ${newFilePath}`);
+
+      // Update episode with new file path
+      await Episode.findByIdAndUpdate(episodeId, {
+        originalFile: newFilePath
+      });
+
+      return newFilePath;
+
+    } catch (error) {
+      console.error('❌ Error organizing video file:', error.message);
       throw error;
     }
   }

@@ -30,8 +30,8 @@ router.use('/admin', adminRoutes);
 router.use('/admin', contentRoutes);
 router.use('/admin', adminContentRoutes); // Admin series/seasons routes
 
-// Test admin routes (temporary)
-const testAdminRoutes = require('./testAdmin');
-router.use('/admin', testAdminRoutes);
+// Test admin routes (temporary) - COMMENTED OUT to use real routes
+// const testAdminRoutes = require('./testAdmin');
+// router.use('/admin', testAdminRoutes);
 
 module.exports = router;

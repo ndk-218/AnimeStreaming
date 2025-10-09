@@ -37,10 +37,25 @@ const adminSchema = new mongoose.Schema(
   }
 );
 
-// ===== INDEXES (Remove duplicates) =====
-// adminSchema.index({ email: 1 }); // Removed - already unique
+// ===== INDEXES =====
 adminSchema.index({ role: 1 });
 adminSchema.index({ isActive: 1 });
+
+// ===== PRE-SAVE HOOK - Auto hash password =====
+adminSchema.pre('save', async function(next) {
+  // Only hash password if it's modified or new
+  if (!this.isModified('password')) {
+    return next();
+  }
+  
+  try {
+    const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
+    this.password = await bcrypt.hash(this.password, saltRounds);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 // ===== PASSWORD METHODS =====
 adminSchema.methods.setPassword = async function(password) {

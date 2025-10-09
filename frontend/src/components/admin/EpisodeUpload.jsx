@@ -241,7 +241,8 @@ function EpisodeUpload({ uploadData, setUploadData, onNext, onBack, setError, se
       })
 
       // Upload with progress tracking
-      const response = await api.post('/admin/episodes', formData, {
+      // ✅ FIX: Đổi từ '/admin/episodes' sang '/episodes/admin'
+      const response = await api.post('/episodes/admin', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
@@ -282,8 +283,17 @@ function EpisodeUpload({ uploadData, setUploadData, onNext, onBack, setError, se
       }
 
     } catch (error) {
-      console.error('❌ Upload error:', error)
-      setError(error.response?.data?.error || 'Failed to upload episode')
+      console.error('❌ Upload error:', error);
+      
+      // Debug: Log full error details
+      if (error.response) {
+        console.error('📋 Error Response Data:', error.response.data);
+        console.error('📋 Error Status:', error.response.status);
+        console.error('📋 Error Headers:', error.response.headers);
+      }
+      
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to upload episode';
+      setError(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
       setUploadProgress(0)
     } finally {
       setUploading(false)

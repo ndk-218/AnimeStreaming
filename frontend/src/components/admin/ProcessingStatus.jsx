@@ -3,11 +3,35 @@ import api from '../../services/api'
 
 // Video Processing Status Component with Real-time Updates
 function ProcessingStatus({ uploadData, onComplete, setError }) {
+  // Debug log
+  useEffect(() => {
+    console.log('🔍 ProcessingStatus - uploadData:', uploadData);
+    if (!uploadData?.episode) {
+      console.error('❌ ProcessingStatus - Missing episode data!');
+    }
+  }, [uploadData]);
+  
   const [processingStatus, setProcessingStatus] = useState('pending')
   const [processingProgress, setProcessingProgress] = useState(0)
-  const [currentStep, setCurrentStep] = useState('Initializing...')
+  const [currentStep, setCurrentStep] = useState('Upload Complete - Waiting for processing...')
   const [processingLogs, setProcessingLogs] = useState([])
   const [estimatedTime, setEstimatedTime] = useState(null)
+
+  // Early return if data is missing
+  if (!uploadData?.episode) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <h3 className="text-red-700 font-semibold mb-2">⚠️ Missing Episode Data</h3>
+        <p className="text-red-600">Episode data is missing. Please try uploading again.</p>
+        <button
+          onClick={onComplete}
+          className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
+        >
+          Back to Upload
+        </button>
+      </div>
+    );
+  }
 
   const processingSteps = [
     { key: 'pending', label: 'Upload Complete', description: 'File uploaded successfully' },
@@ -19,79 +43,25 @@ function ProcessingStatus({ uploadData, onComplete, setError }) {
     { key: 'completed', label: 'Processing Complete', description: 'Episode ready for streaming' }
   ]
 
-  // Simulate processing progress (realistic linear progression)
+  // ⚠️ PHASE 1: NO REAL PROCESSING YET
+  // Show upload success message instead of fake progress
   useEffect(() => {
     if (uploadData.episode) {
-      simulateRealisticProcessing()
+      setProcessingLogs([{
+        timestamp: new Date(),
+        level: 'success',
+        message: `Episode "${uploadData.episode.title}" uploaded successfully!`
+      }, {
+        timestamp: new Date(),
+        level: 'info',
+        message: 'Video processing will be implemented in Phase 2 (BullMQ + FFmpeg)'
+      }, {
+        timestamp: new Date(),
+        level: 'info',
+        message: `File saved to: uploads/videos/${uploadData.episode._id}/original.mp4`
+      }]);
     }
-  }, [uploadData.episode])
-
-  const simulateRealisticProcessing = () => {
-    let currentProgress = 0
-    let currentStepIndex = 0
-    const totalDuration = 30000 // 30 seconds total processing time
-    const updateInterval = 500 // Update every 500ms for smoother progress
-    const progressIncrement = 100 / (totalDuration / updateInterval) // Linear increment (~1.67% per update)
-    
-    const startTime = Date.now()
-    setEstimatedTime(30) // 30 seconds estimated
-    
-    const processInterval = setInterval(() => {
-      // Linear progress increment with small random variation
-      currentProgress += progressIncrement + (Math.random() * 0.5 - 0.25) // ±0.25% variation
-      currentProgress = Math.min(Math.max(currentProgress, 0), 100) // Keep between 0-100%
-      
-      // Update current step based on progress (only move forward)
-      const newStepIndex = Math.floor((currentProgress / 100) * (processingSteps.length - 1))
-      
-      if (newStepIndex > currentStepIndex) {
-        currentStepIndex = newStepIndex
-        const step = processingSteps[currentStepIndex]
-        setCurrentStep(step.description)
-        setProcessingStatus('processing')
-        
-        // Add step log
-        setProcessingLogs(prev => [...prev, {
-          timestamp: new Date(),
-          level: 'info',
-          message: `Started: ${step.label}`
-        }])
-      }
-      
-      // Update progress
-      setProcessingProgress(currentProgress)
-      
-      // Update estimated time remaining
-      const elapsed = Date.now() - startTime
-      const totalEstimated = (elapsed / currentProgress) * 100
-      const remaining = Math.max(0, Math.floor((totalEstimated - elapsed) / 1000))
-      setEstimatedTime(remaining)
-      
-      // Check if complete
-      if (currentProgress >= 100) {
-        clearInterval(processInterval)
-        setProcessingProgress(100)
-        setProcessingStatus('completed')
-        setCurrentStep('Episode ready for streaming!')
-        setEstimatedTime(0)
-        
-        // Add completion log
-        setProcessingLogs(prev => [...prev, {
-          timestamp: new Date(),
-          level: 'success',
-          message: 'Episode processing completed successfully!'
-        }])
-      }
-      
-    }, updateInterval)
-    
-    // Initial log
-    setProcessingLogs([{
-      timestamp: new Date(),
-      level: 'info',
-      message: `Started processing: ${uploadData.episode.title}`
-    }])
-  }
+  }, [uploadData.episode]);
 
   const formatTime = (seconds) => {
     if (seconds < 60) return `${seconds}s`
@@ -126,79 +96,54 @@ function ProcessingStatus({ uploadData, onComplete, setError }) {
             </div>
           </div>
           <div className="text-right">
-            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-              processingStatus === 'completed' ? 'bg-green-100 text-green-700' :
-              processingStatus === 'processing' ? 'bg-blue-100 text-blue-700' :
-              'bg-yellow-100 text-yellow-700'
-            }`}>
-              {processingStatus === 'completed' ? 'Ready to Stream' : 
-               processingStatus === 'processing' ? 'Processing...' : 
-               'Preparing...'}
+            <div className="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-700">
+              Upload Complete - Pending Processing
             </div>
-            {estimatedTime && processingStatus !== 'completed' && (
-              <p className="text-xs text-gray-500 mt-1">~{formatTime(estimatedTime)} remaining</p>
-            )}
+            <p className="text-xs text-gray-500 mt-1">Video processing: Phase 2</p>
           </div>
         </div>
       </div>
 
-      {/* Processing Progress */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-800">Processing Progress</h3>
-          <span className="text-2xl font-bold text-indigo-600">{Math.round(processingProgress)}%</span>
-        </div>
-        
-        <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-          <div 
-            className="bg-gradient-to-r from-indigo-500 to-purple-500 h-3 rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${processingProgress}%` }}
-          ></div>
-        </div>
-        
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600">{currentStep}</span>
-          <span className="text-gray-500">
-            Step {Math.min(Math.floor((processingProgress / 100) * processingSteps.length) + 1, processingSteps.length)} of {processingSteps.length}
-          </span>
+      {/* Phase 1 Complete Notice */}
+      <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+        <div className="flex items-start">
+          <svg className="w-6 h-6 text-green-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-green-800 mb-2">✅ Upload Successful!</h3>
+            <p className="text-green-700 mb-2">
+              Your episode has been uploaded and saved successfully.
+            </p>
+            <div className="bg-white border border-green-200 rounded p-3 text-sm">
+              <p className="font-medium text-gray-700 mb-1">Episode Details:</p>
+              <p className="text-gray-600">ID: {uploadData.episode?._id}</p>
+              <p className="text-gray-600">Status: Pending Processing</p>
+              <p className="text-gray-600">File: uploads/videos/{uploadData.episode?._id}/original.mp4</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Processing Steps */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Processing Steps</h3>
-        <div className="space-y-3">
-          {processingSteps.map((step, index) => {
-            const isCompleted = processingProgress >= ((index + 1) / processingSteps.length) * 100
-            const isCurrent = getCurrentStepInfo().key === step.key
-            
-            return (
-              <div key={step.key} className="flex items-center">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-3 ${
-                  isCompleted 
-                    ? 'bg-green-500 text-white' 
-                    : isCurrent 
-                      ? 'bg-blue-500 text-white animate-pulse' 
-                      : 'bg-gray-200 text-gray-500'
-                }`}>
-                  {isCompleted ? '✓' : index + 1}
-                </div>
-                <div className="flex-1">
-                  <p className={`font-medium ${
-                    isCompleted ? 'text-green-700' : 
-                    isCurrent ? 'text-blue-700' : 
-                    'text-gray-500'
-                  }`}>
-                    {step.label}
-                  </p>
-                  <p className="text-sm text-gray-500">{step.description}</p>
-                </div>
-                {isCurrent && (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                )}
-              </div>
-            )
-          })}
+      {/* Phase 2 Info */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+        <div className="flex items-start">
+          <svg className="w-6 h-6 text-blue-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-blue-800 mb-2">🚧 Phase 2: Video Processing (Coming Soon)</h3>
+            <p className="text-blue-700 mb-3">
+              Automatic video processing will be implemented in Phase 2 with:
+            </p>
+            <ul className="space-y-1 text-blue-600 text-sm">
+              <li>• BullMQ background job queue</li>
+              <li>• FFmpeg video conversion (MP4/MKV → HLS)</li>
+              <li>• Multiple quality generation (480p, 1080p)</li>
+              <li>• Subtitle extraction and processing</li>
+              <li>• Real-time progress updates via Socket.IO</li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -228,38 +173,18 @@ function ProcessingStatus({ uploadData, onComplete, setError }) {
       {/* Action Buttons */}
       <div className="flex items-center justify-between pt-6 border-t border-gray-200">
         <div className="text-sm text-gray-500">
-          {processingStatus === 'completed' 
-            ? 'Episode is now available for streaming' 
-            : 'Please wait while we process your episode'}
+          Episode uploaded successfully. Video processing will be implemented in Phase 2.
         </div>
         <div className="flex items-center space-x-4">
-          {processingStatus === 'completed' ? (
-            <>
-              <button
-                onClick={onComplete}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors"
-              >
-                Upload Another Episode
-              </button>
-              <button
-                onClick={() => window.open(`/watch/${uploadData.series?.slug}/${uploadData.season?.seasonNumber}/${uploadData.episode?.episodeNumber}`, '_blank')}
-                className="bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-6 rounded-lg hover:shadow-lg transition-all flex items-center"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h8m-4-4v4m0 0V7a3 3 0 016 0v4M9 21V9a2 2 0 012-2h2a2 2 0 012 2v12l-3-2-3 2z" />
-                </svg>
-                Watch Episode
-              </button>
-            </>
-          ) : (
-            <button
-              disabled
-              className="bg-gray-300 text-gray-500 px-6 py-3 rounded-lg font-medium cursor-not-allowed flex items-center"
-            >
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500 mr-2"></div>
-              Processing...
-            </button>
-          )}
+          <button
+            onClick={onComplete}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg hover:shadow-lg transition-all flex items-center"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Upload Another Episode
+          </button>
         </div>
       </div>
     </div>

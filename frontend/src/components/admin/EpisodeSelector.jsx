@@ -21,7 +21,7 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
       setError('')
       
       console.log(`📥 Fetching episodes for season: ${seasonId}`)
-      const response = await api.get(`/admin/episodes/season/${seasonId}`)
+      const response = await api.get(`/episodes/season/${seasonId}`)
       
       if (response.data.success) {
         const sortedEpisodes = response.data.data.sort((a, b) => a.episodeNumber - b.episodeNumber)

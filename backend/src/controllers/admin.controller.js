@@ -1,7 +1,9 @@
 // @ts-nocheck
 const Admin = require('../models/Admin');
+const Series = require('../models/Series');
+const Season = require('../models/Season');
+const Episode = require('../models/Episode');
 const { generateToken } = require('../middleware/auth');
-const { SeriesService, SeasonService, EpisodeService } = require('../services');
 
 /**
  * ===== ADMIN CONTROLLER - JAVASCRIPT VERSION =====
@@ -18,6 +20,7 @@ const login = async (req, res) => {
 
     // Find admin by email
     const admin = await Admin.findOne({ email });
+    
     if (!admin) {
       return res.status(401).json({
         success: false,
@@ -35,6 +38,7 @@ const login = async (req, res) => {
 
     // Verify password
     const isPasswordValid = await admin.comparePassword(password);
+    
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -229,42 +233,81 @@ const changePassword = async (req, res) => {
  */
 const getDashboardStats = async (req, res) => {
   try {
-    // Get stats from all services
-    const [seriesStats, seasonStats, episodeStats] = await Promise.all([
-      SeriesService.getSeriesStats(),
-      SeasonService.getSeasonStats(), 
-      EpisodeService.getEpisodeStats()
+    // Get counts directly from models
+    const [
+      totalSeries,
+      totalSeasons,
+      totalEpisodes,
+      seriesByStatus,
+      seasonsByType,
+      episodesByStatus
+    ] = await Promise.all([
+      // Total counts
+      Series.countDocuments(),
+      Season.countDocuments(),
+      Episode.countDocuments(),
+      
+      // Series by status
+      Series.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ]),
+      
+      // Seasons by type
+      Season.aggregate([
+        { $group: { _id: '$seasonType', count: { $sum: 1 } } }
+      ]),
+      
+      // Episodes by processing status
+      Episode.aggregate([
+        { $group: { _id: '$processingStatus', count: { $sum: 1 } } }
+      ])
     ]);
 
-    // Calculate totals
-    const totalContent = {
-      series: seriesStats.total,
-      seasons: seasonStats.total,
-      episodes: episodeStats.total,
-      totalViews: seriesStats.totalViews + (episodeStats.totalViews || 0)
+    // Format series stats
+    const seriesStats = {
+      total: totalSeries,
+      ongoing: 0,
+      completed: 0,
+      upcoming: 0
     };
+    seriesByStatus.forEach(item => {
+      if (item._id) seriesStats[item._id] = item.count;
+    });
 
-    // Processing status summary
-    const processingStatus = {
-      pending: episodeStats.byStatus?.pending || 0,
-      processing: episodeStats.byStatus?.processing || 0,
-      completed: episodeStats.byStatus?.completed || 0,
-      failed: episodeStats.byStatus?.failed || 0
+    // Format season stats
+    const seasonStats = {
+      total: totalSeasons,
+      tv: 0,
+      movie: 0,
+      ova: 0,
+      special: 0
     };
+    seasonsByType.forEach(item => {
+      if (item._id) seasonStats[item._id] = item.count;
+    });
 
-    // Content breakdown
-    const contentBreakdown = {
-      seriesByStatus: seriesStats.byStatus,
-      seasonsByType: seasonStats.byType,
-      episodesByStatus: episodeStats.byStatus
+    // Format episode stats
+    const episodeStats = {
+      total: totalEpisodes,
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0
     };
+    episodesByStatus.forEach(item => {
+      if (item._id) episodeStats[item._id] = item.count;
+    });
 
     res.json({
       success: true,
       data: {
-        totalContent,
-        processingStatus,
-        contentBreakdown,
+        series: seriesStats,
+        seasons: seasonStats,
+        episodes: episodeStats,
+        summary: {
+          totalContent: totalSeries + totalSeasons + totalEpisodes,
+          readyToStream: episodeStats.completed
+        },
         generatedAt: new Date()
       }
     });

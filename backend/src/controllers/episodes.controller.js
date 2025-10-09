@@ -12,8 +12,11 @@ const EpisodeService = require('../services/episode.service');
  */
 const createEpisode = async (req, res) => {
   try {
+    console.log('📁 Files received:', req.files); // Debug log
+    
     // Kiểm tra file video được upload
-    if (!req.file) {
+    // uploadEpisode middleware sử dụng .fields() nên file nằm trong req.files object
+    if (!req.files || !req.files.videoFile || !req.files.videoFile[0]) {
       return res.status(400).json({
         success: false,
         error: 'Video file is required'
@@ -36,11 +39,17 @@ const createEpisode = async (req, res) => {
       episodeNumber: parseInt(episodeNumber),
       title,
       description: description || '',
-      originalFile: req.file.path
+      originalFile: req.files.videoFile[0].path // Lấy file từ req.files.videoFile[0]
     };
 
     // Tạo episode trong database
     const episode = await EpisodeService.createEpisode(episodeData);
+    
+    // Process subtitle files if any
+    if (req.files && req.files.subtitleFiles && req.files.subtitleFiles.length > 0) {
+      console.log(`📄 Processing ${req.files.subtitleFiles.length} subtitle file(s)`);
+      // TODO: Add subtitle processing logic here
+    }
 
     // TODO: Add to video processing queue (sẽ implement sau)
     console.log(`📺 Episode queued for processing: ${episode.title}`);
@@ -272,6 +281,7 @@ const deleteEpisode = async (req, res) => {
  */
 const addSubtitle = async (req, res) => {
   try {
+    // uploadSubtitle middleware sử dụng .single() nên file nằm trong req.file (singular)
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -291,7 +301,7 @@ const addSubtitle = async (req, res) => {
     const subtitleData = {
       language,
       label,
-      file: req.file.path,
+      file: req.file.path, // req.file vì dùng .single()
       type: 'uploaded'
     };
 

@@ -158,6 +158,7 @@ const validateCreateEpisode = [
   body('episodeNumber')
     .notEmpty()
     .withMessage('Episode number is required')
+    .toInt() // ← Convert string to int FIRST
     .isInt({ min: 1 })
     .withMessage('Episode number must be a positive integer'),
     
@@ -388,6 +389,7 @@ const validateProcessingStatus = [
     
   body('duration')
     .optional()
+    .toInt() // ← Convert string to int
     .isInt({ min: 1 })
     .withMessage('Duration must be a positive integer (seconds)'),
     
