@@ -9,6 +9,7 @@ const {
   getEpisodesBySeason,
   streamEpisode,
   updateEpisode,
+  replaceEpisodeVideo, 
   deleteEpisode,
   addSubtitle,
   searchEpisodes,
@@ -16,6 +17,11 @@ const {
   getEpisodeStats,
   updateProcessingStatus
 } = require('../controllers/episodes.controller');
+
+const {
+  getProcessingStatus,
+  getAllProcessingJobs
+} = require('../controllers/processing.controller');
 
 // Import middleware
 const {
@@ -102,6 +108,17 @@ router.put('/admin/:id',
   catchAsync(updateEpisode)
 );
 
+// Replace video file for existing episode (Admin only)
+// PUT /api/episodes/admin/507f1f77bcf86cd799439011/video (multipart/form-data)
+// Body: { videoFile }
+router.put('/admin/:id/video',
+  adminAuth,
+  uploadEpisode,  // Reuse existing middleware
+  handleUploadError,
+  validateMongoId,
+  catchAsync(replaceEpisodeVideo)
+);
+
 // Delete episode (Admin only)
 // DELETE /api/episodes/admin/507f1f77bcf86cd799439011
 router.delete('/admin/:id', 
@@ -135,6 +152,21 @@ router.put('/admin/:id/processing',
 router.get('/admin/stats', 
   adminAuth,
   catchAsync(getEpisodeStats)
+);
+
+// Get processing status for specific episode (Admin only)
+// GET /api/episodes/admin/507f1f77bcf86cd799439011/processing-status
+router.get('/admin/:id/processing-status', 
+  adminAuth,
+  validateMongoId,
+  catchAsync(getProcessingStatus)
+);
+
+// Get all processing jobs (Admin only)
+// GET /api/episodes/admin/processing/jobs
+router.get('/admin/processing/jobs', 
+  adminAuth,
+  catchAsync(getAllProcessingJobs)
 );
 
 module.exports = router;

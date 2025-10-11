@@ -1,0 +1,19 @@
+{
+  "watch": ["src/workers", "src/services/videoProcessor.service.js"],
+  "ext": "js,json",
+  "ignore": [
+    "src/**/*.test.js",
+    "src/**/*.spec.js",
+    "dist/**/*",
+    "uploads/**/*",
+    "temp/**/*",
+    "node_modules/**/*"
+  ],
+  "exec": "node src/startWorker.js",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": "1000",
+  "verbose": true,
+  "colours": true
+}

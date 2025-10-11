@@ -1,5 +1,6 @@
 // @ts-nocheck
 const EpisodeService = require('../services/episode.service');
+const path = require('path');
 
 /**
  * ===== EPISODES CONTROLLER - JAVASCRIPT VERSION =====
@@ -15,7 +16,6 @@ const createEpisode = async (req, res) => {
     console.log('📁 Files received:', req.files); // Debug log
     
     // Kiểm tra file video được upload
-    // uploadEpisode middleware sử dụng .fields() nên file nằm trong req.files object
     if (!req.files || !req.files.videoFile || !req.files.videoFile[0]) {
       return res.status(400).json({
         success: false,
@@ -39,7 +39,7 @@ const createEpisode = async (req, res) => {
       episodeNumber: parseInt(episodeNumber),
       title,
       description: description || '',
-      originalFile: req.files.videoFile[0].path // Lấy file từ req.files.videoFile[0]
+      originalFile: req.files.videoFile[0].path
     };
 
     // Tạo episode trong database
@@ -51,8 +51,26 @@ const createEpisode = async (req, res) => {
       // TODO: Add subtitle processing logic here
     }
 
-    // TODO: Add to video processing queue (sẽ implement sau)
-    console.log(`📺 Episode queued for processing: ${episode.title}`);
+    // Add video to processing queue
+    const { addVideoProcessingJob } = require('../config/queue');
+
+    // Tạo path từ episodeId (file đã được organize trong service)
+    const videoPath = path.join(
+      process.cwd(),
+      'uploads',
+      'videos',
+      episode._id.toString(),
+      'original.mp4'
+    );
+
+    console.log('📹 Video file path:', videoPath);
+
+    await addVideoProcessingJob(
+      episode._id.toString(), 
+      videoPath
+    );
+    
+    console.log(`📺 Episode queued for processing: ${episode.title} (Job ID: video-${episode._id})`);
 
     res.status(201).json({
       success: true,
@@ -462,12 +480,82 @@ const updateProcessingStatus = async (req, res) => {
   }
 };
 
+/**
+ * Replace video file cho episode đã tồn tại
+ * PUT /admin/episodes/:id/video
+ */
+const replaceEpisodeVideo = async (req, res) => {
+  try {
+    console.log('🔄 Replace video request for episode:', req.params.id);
+    console.log('📁 Files received:', req.files);
+
+    // Kiểm tra file video được upload
+    if (!req.files || !req.files.videoFile || !req.files.videoFile[0]) {
+      return res.status(400).json({
+        success: false,
+        error: 'Video file is required'
+      });
+    }
+
+    const episodeId = req.params.id;
+    const newVideoPath = req.files.videoFile[0].path;
+
+    // Replace video trong service
+    await EpisodeService.replaceEpisodeVideo(episodeId, newVideoPath);
+
+    // Add video to processing queue
+    console.log('📦 Attempting to add job to queue...');
+    
+    let addVideoProcessingJob;
+    try {
+      // Dynamic import cho ES Module
+      const queueModule = await import('../config/queue.js');
+      addVideoProcessingJob = queueModule.addVideoProcessingJob;
+      console.log('✅ Queue module loaded successfully');
+    } catch (importError) {
+      console.error('❌ Failed to import queue module:', importError.message);
+      throw new Error('Failed to initialize video processing queue');
+    }
+
+    const videoPath = path.join(
+      process.cwd(),
+      'uploads',
+      'videos',
+      episodeId,
+      'original.mp4'
+    );
+
+    console.log('📹 Video path for processing:', videoPath);
+    
+    const job = await addVideoProcessingJob(episodeId, videoPath);
+    
+    console.log(`✅ Job added to queue successfully!`);
+    console.log(`📺 Job ID: video-${episodeId}`);
+    console.log(`🔢 Queue job ID: ${job.id}`);
+
+    res.json({
+      success: true,
+      message: 'Episode video replaced successfully and queued for processing',
+      jobId: job.id
+    });
+
+  } catch (error) {
+    console.error('❌ Replace episode video error:', error.message);
+    console.error('❌ Stack trace:', error.stack);
+    
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
 module.exports = {
   createEpisode,
   getEpisodeById,
   getEpisodesBySeason,
   streamEpisode,
   updateEpisode,
+  replaceEpisodeVideo,
   deleteEpisode,
   addSubtitle,
   searchEpisodes,

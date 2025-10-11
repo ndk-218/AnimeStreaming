@@ -218,44 +218,62 @@ function EpisodeUpload({ uploadData, setUploadData, onNext, onBack, setError, se
     setUploadProgress(0)
 
     try {
-      console.log('🚀 Starting episode upload...');
+      const isReplacement = selectedEpisode?.isExisting && selectedEpisode?.episodeId;
+      console.log(`🚀 Starting episode ${isReplacement ? 'replacement' : 'upload'}...`);
       
       // Create FormData for file upload
       const formData = new FormData()
-      formData.append('seriesId', uploadData.series._id)
-      formData.append('seasonId', uploadData.season._id)
-      formData.append('title', episodeData.title.trim())
-      formData.append('episodeNumber', episodeData.episodeNumber)
-      formData.append('description', episodeData.description.trim() || '')
       formData.append('videoFile', episodeData.videoFile)
       
-      // Add replaceEpisodeId if replacing existing episode
-      if (selectedEpisode?.isExisting && selectedEpisode?.episodeId) {
-        formData.append('replaceEpisodeId', selectedEpisode.episodeId)
+      let response;
+      
+      if (isReplacement) {
+        // ✅ REPLACE EXISTING EPISODE - PUT endpoint
         console.log(`🔄 Replacing episode ID: ${selectedEpisode.episodeId}`);
+        
+        response = await api.put(
+          `/episodes/admin/${selectedEpisode.episodeId}/video`, 
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            },
+            onUploadProgress: (progressEvent) => {
+              const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              setUploadProgress(progress)
+              console.log(`📊 Upload progress: ${progress}%`);
+            }
+          }
+        );
+      } else {
+        // ✅ CREATE NEW EPISODE - POST endpoint
+        console.log('📝 Creating new episode');
+        
+        formData.append('seriesId', uploadData.series._id)
+        formData.append('seasonId', uploadData.season._id)
+        formData.append('title', episodeData.title.trim())
+        formData.append('episodeNumber', episodeData.episodeNumber)
+        formData.append('description', episodeData.description.trim() || '')
+        
+        // Add subtitle files
+        episodeData.subtitleFiles.forEach((file, index) => {
+          formData.append('subtitleFiles', file)
+        })
+        
+        response = await api.post('/episodes/admin', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          onUploadProgress: (progressEvent) => {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            setUploadProgress(progress)
+            console.log(`📊 Upload progress: ${progress}%`);
+          }
+        });
       }
-
-      // Add subtitle files
-      episodeData.subtitleFiles.forEach((file, index) => {
-        formData.append('subtitleFiles', file)
-      })
-
-      // Upload with progress tracking
-      // ✅ FIX: Đổi từ '/admin/episodes' sang '/episodes/admin'
-      const response = await api.post('/episodes/admin', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        onUploadProgress: (progressEvent) => {
-          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-          setUploadProgress(progress)
-          console.log(`📊 Upload progress: ${progress}%`);
-        }
-      })
 
       if (response.data.success) {
         console.log('✅ Upload completed successfully');
-        const isReplacement = selectedEpisode?.isExisting;
         const successMessage = isReplacement ? 
           `Episode "${episodeData.title}" replaced successfully!` : 
           `Episode "${episodeData.title}" uploaded successfully!`;
@@ -263,8 +281,8 @@ function EpisodeUpload({ uploadData, setUploadData, onNext, onBack, setError, se
         setSuccess(successMessage);
         setUploadData(prev => ({ 
           ...prev, 
-          episode: response.data.data,
-          processingId: response.data.processingId 
+          episode: response.data.data || { _id: selectedEpisode.episodeId },
+          processingId: response.data.processingId || response.data.jobId
         }))
         
         // Clear selected episode to reset form

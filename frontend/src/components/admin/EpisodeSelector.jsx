@@ -41,44 +41,34 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
     }
   }
 
-  // Generate batch options based on episode count
+  // Generate batch options based on max episode count or 1000
   const getBatchOptions = () => {
-    const totalEpisodes = episodes.length
-    if (totalEpisodes === 0) return []
+    const maxEpisode = episodes.length > 0 
+      ? Math.max(...episodes.map(ep => ep.episodeNumber))
+      : 36 // Default to 1 batch if no episodes
 
     const batches = []
     const batchSize = 36
     let currentBatch = 1
     let startEpisode = 1
 
-    while (startEpisode <= totalEpisodes) {
-      const endEpisode = Math.min(startEpisode + batchSize - 1, totalEpisodes)
+    while (startEpisode <= maxEpisode + batchSize) {
+      const endEpisode = startEpisode + batchSize - 1
       batches.push({
         batch: currentBatch,
-        label: `Episodes ${startEpisode}-${endEpisode}`,
+        label: `Tập ${startEpisode} - ${endEpisode}`,
         start: startEpisode,
         end: endEpisode
       })
       
       currentBatch++
       startEpisode += batchSize
+      
+      // Limit to reasonable number of batches
+      if (currentBatch > 28) break // Max ~1000 episodes
     }
 
     return batches
-  }
-
-  // Get episodes for current batch
-  const getCurrentBatchEpisodes = () => {
-    const batches = getBatchOptions()
-    if (batches.length === 0) return []
-
-    const currentBatchInfo = batches.find(batch => batch.batch === selectedBatch)
-    if (!currentBatchInfo) return []
-
-    return episodes.filter(ep => 
-      ep.episodeNumber >= currentBatchInfo.start && 
-      ep.episodeNumber <= currentBatchInfo.end
-    )
   }
 
   // Handle episode selection
@@ -131,11 +121,8 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
 
   // Get episode tooltip text
   const getEpisodeTooltip = (episode) => {
-    const fileSize = episode.fileSize ? `${(episode.fileSize / (1024 * 1024)).toFixed(1)}MB` : 'Unknown size'
     const status = episode.processingStatus || 'pending'
-    const uploadDate = episode.uploadDate ? new Date(episode.uploadDate).toLocaleDateString() : 'Unknown date'
-    
-    return `${episode.title}\nStatus: ${status}\nSize: ${fileSize}\nUploaded: ${uploadDate}\nClick to replace`
+    return `${episode.title}\nStatus: ${status}\nClick to replace`
   }
 
   if (loading) {
@@ -151,11 +138,10 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
   }
 
   const batchOptions = getBatchOptions()
-  const currentBatchEpisodes = getCurrentBatchEpisodes()
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header với Batch Selector */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Episode List</h3>
@@ -164,21 +150,26 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
           </p>
         </div>
         
-        {/* Batch Selector */}
-        {batchOptions.length > 1 && (
-          <div className="flex items-center space-x-2">
-            <label className="text-sm text-gray-600">Batch:</label>
+        {/* Batch Selector Dropdown - Giống hình mẫu */}
+        {batchOptions.length > 0 && (
+          <div className="relative">
             <select 
               value={selectedBatch} 
               onChange={(e) => setSelectedBatch(parseInt(e.target.value))}
-              className="text-sm border border-gray-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="appearance-none bg-gray-800 text-white font-medium px-4 py-2 pr-10 rounded-lg border-2 border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer hover:bg-gray-700 transition-colors"
             >
               {batchOptions.map(batch => (
-                <option key={batch.batch} value={batch.batch}>
+                <option key={batch.batch} value={batch.batch} className="bg-gray-800">
                   {batch.label}
                 </option>
               ))}
             </select>
+            {/* Dropdown Arrow Icon */}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </div>
         )}
       </div>
@@ -190,7 +181,7 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
         </div>
       )}
 
-      {/* Episodes List */}
+      {/* Episodes Grid hoặc Empty State */}
       {episodes.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-gray-500 mb-4">No episodes uploaded yet</p>
@@ -204,129 +195,106 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
         </div>
       ) : (
         <>
-          {/* Episode Grid */}
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
-            {currentBatchEpisodes.map(episode => {
-              const isSelected = selectedEpisode?.episodeId === episode._id
+          {/* Episode Grid - 3 rows × 12 columns = 36 episodes per batch */}
+          <div className="grid grid-cols-12 gap-2">
+            {/* Render current batch episodes */}
+            {Array.from({ length: 36 }, (_, index) => {
+              const batchInfo = batchOptions.find(b => b.batch === selectedBatch)
+              if (!batchInfo) return null
               
-              return (
-                <button
-                  key={episode._id}
-                  onClick={() => handleEpisodeClick(episode)}
-                  title={getEpisodeTooltip(episode)}
-                  className={`
-                    relative h-12 w-12 rounded border-2 transition-all duration-200 font-medium text-sm
-                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-                    ${getEpisodeStatusColor(episode)}
-                  `}
-                >
-                  {/* Episode Number */}
-                  <span className="relative z-10">
-                    {episode.episodeNumber.toString().padStart(2, '0')}
-                  </span>
-                  
-                  {/* Processing Status Indicator */}
-                  <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white">
-                    {episode.processingStatus === 'completed' && (
-                      <div className="w-full h-full bg-green-500 rounded-full" title="Processing Complete" />
-                    )}
-                    {episode.processingStatus === 'processing' && (
-                      <div className="w-full h-full bg-yellow-500 rounded-full animate-pulse" title="Processing" />
-                    )}
-                    {episode.processingStatus === 'failed' && (
-                      <div className="w-full h-full bg-red-500 rounded-full" title="Processing Failed" />
-                    )}
-                    {episode.processingStatus === 'pending' && (
-                      <div className="w-full h-full bg-gray-400 rounded-full" title="Processing Pending" />
-                    )}
-                  </div>
-                </button>
-              )
-            })}
-            
-            {/* Add New Episode Button */}
-            <button
-              onClick={handleAddNewEpisode}
-              title="Upload new episode"
-              className="relative h-12 w-12 rounded border-2 border-dashed border-gray-400 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 flex items-center justify-center group focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <Plus className="w-6 h-6 text-gray-400 group-hover:text-blue-500 transition-colors" />
-            </button>
-          </div>
-
-          {/* Episode Details List */}
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {currentBatchEpisodes.map(episode => (
-              <div 
-                key={episode._id}
-                onClick={() => handleEpisodeClick(episode)}
-                className={`p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-                  selectedEpisode?.episodeId === episode._id
-                    ? 'border-pink-500 bg-pink-50'
-                    : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`
-                      w-8 h-8 rounded flex items-center justify-center text-sm font-medium
-                      ${selectedEpisode?.episodeId === episode._id ? 'bg-pink-500 text-white' : 'bg-blue-500 text-white'}
-                    `}>
+              const episodeNumber = batchInfo.start + index
+              
+              // Don't render if beyond batch range
+              if (episodeNumber > batchInfo.end) {
+                return (
+                  <div key={`empty-${index}`} className="h-12 w-full" />
+                )
+              }
+              
+              // Find existing episode with this number
+              const episode = episodes.find(ep => ep.episodeNumber === episodeNumber)
+              
+              if (episode) {
+                // Existing episode button
+                return (
+                  <button
+                    key={episode._id}
+                    onClick={() => handleEpisodeClick(episode)}
+                    title={getEpisodeTooltip(episode)}
+                    className={`
+                      relative h-12 w-full rounded border-2 transition-all duration-200 font-medium text-sm
+                      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                      ${getEpisodeStatusColor(episode)}
+                    `}
+                  >
+                    {/* Episode Number */}
+                    <span className="relative z-10">
                       {episode.episodeNumber.toString().padStart(2, '0')}
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{episode.title}</p>
-                      {episode.description && (
-                        <p className="text-sm text-gray-500 truncate">{episode.description}</p>
+                    </span>
+                    
+                    {/* Processing Status Indicator */}
+                    <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white">
+                      {episode.processingStatus === 'completed' && (
+                        <div className="w-full h-full bg-green-500 rounded-full" title="Processing Complete" />
+                      )}
+                      {episode.processingStatus === 'processing' && (
+                        <div className="w-full h-full bg-yellow-500 rounded-full animate-pulse" title="Processing" />
+                      )}
+                      {episode.processingStatus === 'failed' && (
+                        <div className="w-full h-full bg-red-500 rounded-full" title="Processing Failed" />
+                      )}
+                      {episode.processingStatus === 'pending' && (
+                        <div className="w-full h-full bg-gray-400 rounded-full" title="Processing Pending" />
                       )}
                     </div>
-                  </div>
-                  
-                  <div className="text-right">
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      episode.processingStatus === 'completed' ? 'bg-green-100 text-green-600' :
-                      episode.processingStatus === 'processing' ? 'bg-yellow-100 text-yellow-600' :
-                      episode.processingStatus === 'failed' ? 'bg-red-100 text-red-600' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
-                      {episode.processingStatus || 'pending'}
-                    </span>
-                    {episode.fileSize && (
-                      <p className="text-xs text-gray-400 mt-1">
-                        {(episode.fileSize / (1024 * 1024)).toFixed(1)}MB
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+                  </button>
+                )
+              } else {
+                // Empty slot - show episode number placeholder
+                return (
+                  <button
+                    key={`slot-${episodeNumber}`}
+                    onClick={() => {
+                      onEpisodeSelect({
+                        episodeNumber: episodeNumber,
+                        title: `Episode ${episodeNumber}`,
+                        description: '',
+                        isExisting: false,
+                        episodeId: null,
+                        processingStatus: null
+                      })
+                    }}
+                    className="relative h-12 w-full rounded border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 font-medium text-sm text-gray-400 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    title={`Upload Episode ${episodeNumber}`}
+                  >
+                    <Plus className="w-4 h-4 mx-auto" />
+                  </button>
+                )
+              }
+            })}
           </div>
         </>
       )}
 
       {/* Legend */}
       <div className="bg-gray-50 rounded-lg p-4">
-        <h4 className="font-medium text-gray-900 mb-2">Legend:</h4>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-blue-500 border border-blue-600 rounded"></div>
-              <span className="text-gray-600">Completed</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-yellow-500 border border-yellow-600 rounded"></div>
-              <span className="text-gray-600">Processing</span>
-            </div>
+        <h4 className="font-medium text-gray-900 mb-2">Color Legend:</h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-blue-500 border border-blue-600 rounded"></div>
+            <span className="text-gray-600">Completed</span>
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-pink-500 border border-pink-600 rounded"></div>
-              <span className="text-gray-600">Selected</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-red-500 border border-red-600 rounded"></div>
-              <span className="text-gray-600">Failed</span>
-            </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-yellow-500 border border-yellow-600 rounded"></div>
+            <span className="text-gray-600">Processing</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-red-500 border border-red-600 rounded"></div>
+            <span className="text-gray-600">Failed</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-gray-500 border border-gray-600 rounded"></div>
+            <span className="text-gray-600">Pending</span>
           </div>
         </div>
       </div>

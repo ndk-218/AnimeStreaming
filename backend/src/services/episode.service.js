@@ -105,6 +105,7 @@ class EpisodeService {
   static async getEpisodeWithDetails(episodeId) {
     try {
       const episode = await Episode.findById(episodeId)
+        .select('+originalFile') // Thêm dòng này để lấy originalFile
         .populate('seriesId', 'title slug posterImage')
         .populate('seasonId', 'title seasonNumber seasonType');
         
@@ -112,7 +113,7 @@ class EpisodeService {
     } catch (error) {
       console.error('❌ Error getting episode details:', error.message);
       throw error;
-    }
+      }
   }
 
   /**
@@ -391,6 +392,88 @@ class EpisodeService {
       throw error;
     }
   }
+
+  /**
+ * Replace video file cho episode đã tồn tại
+ */
+static async replaceEpisodeVideo(episodeId, newVideoPath) {
+  try {
+    const episode = await Episode.findById(episodeId);
+    if (!episode) {
+      throw new Error('Episode not found');
+    }
+
+    const episodeDir = path.join(
+      process.cwd(),
+      'uploads',
+      'videos',
+      episodeId.toString()
+    );
+
+    // CHỈ XÓA HLS FILES, GIỮ LẠI FOLDER GỐC
+    try {
+      const items = await fs.readdir(episodeDir);
+      
+      for (const item of items) {
+        const itemPath = path.join(episodeDir, item);
+        const stat = await fs.stat(itemPath);
+        
+        // Xóa HLS folders (720p, 480p, 1080p)
+        if (stat.isDirectory() && (item === '720p' || item === '480p' || item === '1080p' || item === 'subtitles')) {
+          await fs.remove(itemPath);
+          console.log(`🗑️ Removed HLS folder: ${item}`);
+        }
+        
+        // Xóa master playlist
+        if (stat.isFile() && item === 'master.m3u8') {
+          await fs.remove(itemPath);
+          console.log(`🗑️ Removed master playlist`);
+        }
+        
+        // Xóa original video cũ
+        if (stat.isFile() && item.startsWith('original.')) {
+          await fs.remove(itemPath);
+          console.log(`🗑️ Removed old original video`);
+        }
+      }
+    } catch (error) {
+      // Nếu folder chưa tồn tại hoặc lỗi khác, tiếp tục
+      console.warn('⚠️ Cleanup warning:', error.message);
+    }
+
+    // Move video file mới vào folder (folder đã tồn tại)
+    const ext = path.extname(path.basename(newVideoPath));
+    const newFilename = `original${ext}`;
+    const newFilePath = path.join(episodeDir, newFilename);
+    
+    // Ensure folder exists
+    await fs.ensureDir(episodeDir);
+    
+    // Move new video
+    await fs.move(newVideoPath, newFilePath, { overwrite: true });
+    console.log(`📦 Organized video file: ${newFilePath}`);
+
+    // Update episode with new file path
+    await Episode.findByIdAndUpdate(episodeId, {
+      originalFile: newFilePath,
+      processingStatus: 'pending',
+      hlsPath: null,
+      qualities: [],
+      subtitles: [],
+      duration: null,
+      thumbnail: null
+    });
+
+    console.log(`🔄 Episode video replaced: ${episode.title}`);
+    
+    return episode;
+
+  } catch (error) {
+    console.error('❌ Error replacing episode video:', error.message);
+    throw error;
+  }
 }
+}
+
 
 module.exports = EpisodeService;
