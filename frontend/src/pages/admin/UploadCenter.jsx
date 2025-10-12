@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import api from '../../services/api'
 import EnhancedSeriesSelection from '../../components/admin/EnhancedSeriesSelection'
 import EnhancedSeasonSelection from '../../components/admin/EnhancedSeasonSelection'
-import EpisodeUpload from '../../components/admin/EpisodeUpload'
+import EpisodeUploadModal from '../../components/admin/EpisodeUploadModal'
 import ProcessingStatus from '../../components/admin/ProcessingStatus'
 
 export default function UploadCenter() {
@@ -164,7 +164,7 @@ export default function UploadCenter() {
           )}
           
           {currentStep === 3 && (
-            <EpisodeUpload
+            <EpisodeUploadModal
               uploadData={uploadData}
               setUploadData={setUploadData}
               onNext={() => setCurrentStep(4)}

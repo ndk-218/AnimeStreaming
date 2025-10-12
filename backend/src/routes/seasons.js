@@ -19,6 +19,8 @@ const {
   getNextSeasonNumber
 } = require('../controllers/seasons.controller');
 
+const playbackController = require('../controllers/playback.controller');
+
 // Import middleware
 const {
   adminAuth,
@@ -63,6 +65,12 @@ router.get('/recent',
   optionalAuth,
   validatePagination,
   catchAsync(getRecentSeasons)
+);
+
+// ✅ THÊM: Get episodes of a season (for playback navigation)
+// GET /api/seasons/507f1f77bcf86cd799439011/episodes
+router.get('/:seasonId/episodes', 
+  catchAsync(playbackController.getSeasonEpisodes)
 );
 
 // Get seasons by series ID

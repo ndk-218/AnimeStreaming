@@ -23,6 +23,9 @@ const {
   getAllProcessingJobs
 } = require('../controllers/processing.controller');
 
+// ✅ THÊM: Import playback controller
+const playbackController = require('../controllers/playback.controller');
+
 // Import middleware
 const {
   adminAuth,
@@ -42,52 +45,24 @@ const {
 } = require('../middleware');
 
 /**
- * ===== PUBLIC ROUTES (Anonymous access) =====
- */
-
-// Get episode by ID
-// GET /api/episodes/507f1f77bcf86cd799439011
-router.get('/:id', 
-  optionalAuth,
-  validateMongoId,
-  catchAsync(getEpisodeById)
-);
-
-// Stream episode (with view count increment)
-// GET /api/episodes/507f1f77bcf86cd799439011/stream
-router.get('/:id/stream', 
-  optionalAuth,
-  validateMongoId,
-  catchAsync(streamEpisode)
-);
-
-// Get episodes by season
-// GET /api/episodes/season/507f1f77bcf86cd799439011?playable=true
-router.get('/season/:seasonId', 
-  optionalAuth,
-  validateSeasonId,
-  catchAsync(getEpisodesBySeason)
-);
-
-// Search episodes
-// GET /api/episodes/search?q=episode&limit=20
-router.get('/search', 
-  optionalAuth,
-  validateSearch,
-  catchAsync(searchEpisodes)
-);
-
-// Get popular episodes
-// GET /api/episodes/popular?limit=10
-router.get('/popular', 
-  optionalAuth,
-  validatePagination,
-  catchAsync(getPopularEpisodes)
-);
-
-/**
  * ===== ADMIN ROUTES (Authentication required) =====
+ * ⚠️ CRITICAL: Admin routes MUST be defined BEFORE public routes
+ * to prevent Express from matching "/admin/xxx" with "/:id" pattern
  */
+
+// Get episode statistics (Admin only)
+// GET /api/episodes/admin/stats
+router.get('/admin/stats', 
+  adminAuth,
+  catchAsync(getEpisodeStats)
+);
+
+// Get all processing jobs (Admin only)
+// GET /api/episodes/admin/processing/jobs
+router.get('/admin/processing/jobs', 
+  adminAuth,
+  catchAsync(getAllProcessingJobs)
+);
 
 // Upload new episode với video file (Admin only)
 // POST /api/episodes/admin (multipart/form-data)
@@ -98,6 +73,23 @@ router.post('/admin',
   handleUploadError,
   validateCreateEpisode,
   catchAsync(createEpisode)
+);
+
+// Get processing status for specific episode (Admin only)
+// GET /api/episodes/admin/507f1f77bcf86cd799439011/processing-status
+router.get('/admin/:id/processing-status', 
+  adminAuth,
+  validateMongoId,
+  catchAsync(getProcessingStatus)
+);
+
+// Update processing status (Internal use by video processing service)
+// PUT /api/episodes/admin/507f1f77bcf86cd799439011/processing
+// Body: { processingStatus, hlsPath, qualities, duration, thumbnail, subtitles }
+router.put('/admin/:id/processing', 
+  adminAuth,
+  validateProcessingStatus,
+  catchAsync(updateProcessingStatus)
 );
 
 // Update episode metadata (Admin only)
@@ -113,7 +105,7 @@ router.put('/admin/:id',
 // Body: { videoFile }
 router.put('/admin/:id/video',
   adminAuth,
-  uploadEpisode,  // Reuse existing middleware
+  uploadEpisode,
   handleUploadError,
   validateMongoId,
   catchAsync(replaceEpisodeVideo)
@@ -138,35 +130,57 @@ router.post('/admin/:id/subtitles',
   catchAsync(addSubtitle)
 );
 
-// Update processing status (Internal use by video processing service)
-// PUT /api/episodes/admin/507f1f77bcf86cd799439011/processing
-// Body: { processingStatus, hlsPath, qualities, duration, thumbnail, subtitles }
-router.put('/admin/:id/processing', 
-  adminAuth,
-  validateProcessingStatus,
-  catchAsync(updateProcessingStatus)
+/**
+ * ===== PUBLIC ROUTES (Anonymous access) =====
+ * These routes MUST come AFTER admin routes to prevent conflicts
+ */
+
+// Search episodes
+// GET /api/episodes/search?q=episode&limit=20
+router.get('/search', 
+  optionalAuth,
+  validateSearch,
+  catchAsync(searchEpisodes)
 );
 
-// Get episode statistics (Admin only)
-// GET /api/episodes/admin/stats
-router.get('/admin/stats', 
-  adminAuth,
-  catchAsync(getEpisodeStats)
+// Get popular episodes
+// GET /api/episodes/popular?limit=10
+router.get('/popular', 
+  optionalAuth,
+  validatePagination,
+  catchAsync(getPopularEpisodes)
 );
 
-// Get processing status for specific episode (Admin only)
-// GET /api/episodes/admin/507f1f77bcf86cd799439011/processing-status
-router.get('/admin/:id/processing-status', 
-  adminAuth,
+// Get episodes by season
+// GET /api/episodes/season/507f1f77bcf86cd799439011?playable=true
+router.get('/season/:seasonId', 
+  optionalAuth,
+  validateSeasonId,
+  catchAsync(getEpisodesBySeason)
+);
+
+// ✅ THÊM: Playback endpoint (anonymous viewing)
+// GET /api/episodes/507f1f77bcf86cd799439011/playback
+// Returns: HLS path, qualities, episode metadata for video player
+router.get('/:episodeId/playback', 
+  catchAsync(playbackController.getPlaybackInfo)
+);
+
+// Stream episode (with view count increment)
+// GET /api/episodes/507f1f77bcf86cd799439011/stream
+router.get('/:id/stream', 
+  optionalAuth,
   validateMongoId,
-  catchAsync(getProcessingStatus)
+  catchAsync(streamEpisode)
 );
 
-// Get all processing jobs (Admin only)
-// GET /api/episodes/admin/processing/jobs
-router.get('/admin/processing/jobs', 
-  adminAuth,
-  catchAsync(getAllProcessingJobs)
+// Get episode by ID
+// GET /api/episodes/507f1f77bcf86cd799439011
+// ⚠️ This MUST be the LAST route because it's a catch-all pattern
+router.get('/:id', 
+  optionalAuth,
+  validateMongoId,
+  catchAsync(getEpisodeById)
 );
 
 module.exports = router;

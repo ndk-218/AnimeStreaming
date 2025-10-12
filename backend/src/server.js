@@ -62,12 +62,13 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
-      mediaSrc: ["'self'", "blob:", "data:"],
-      connectSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "blob:"]
+      mediaSrc: ["'self'", "blob:", "data:", "http:", "https:"],
+      connectSrc: ["'self'", "http:", "https:"],
+      imgSrc: ["'self'", "data:", "blob:", "http:", "https:"]
     }
   },
-  crossOriginEmbedderPolicy: false // Allow video streaming
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false
 }));
 
 // CORS

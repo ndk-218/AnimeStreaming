@@ -6,8 +6,7 @@ const seriesRoutes = require('./series');
 const seasonsRoutes = require('./seasons');
 const episodesRoutes = require('./episodes');
 const adminRoutes = require('./admin');
-const contentRoutes = require('./content'); // New content management routes
-const adminContentRoutes = require('./adminContent'); // Admin content routes
+const contentRoutes = require('./content');
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -20,18 +19,20 @@ router.get('/health', (req, res) => {
   });
 });
 
-// Public routes
+// ============================================
+// PUBLIC ROUTES (Anonymous Access)
+// ============================================
+// Series: GET /api/series, GET /api/series/:slug
+// Seasons: GET /api/seasons, GET /api/seasons/:seasonId/episodes  
+// Episodes: GET /api/episodes, GET /api/episodes/:episodeId/playback
 router.use('/series', seriesRoutes);
 router.use('/seasons', seasonsRoutes);
 router.use('/episodes', episodesRoutes);
 
-// Admin routes (protected)
+// ============================================
+// ADMIN ROUTES (Protected)
+// ============================================
 router.use('/admin', adminRoutes);
 router.use('/admin', contentRoutes);
-router.use('/admin', adminContentRoutes); // Admin series/seasons routes
-
-// Test admin routes (temporary) - COMMENTED OUT to use real routes
-// const testAdminRoutes = require('./testAdmin');
-// router.use('/admin', testAdminRoutes);
 
 module.exports = router;
