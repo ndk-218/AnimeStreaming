@@ -159,17 +159,10 @@ router.get('/season/:seasonId',
   catchAsync(getEpisodesBySeason)
 );
 
-// ✅ THÊM: Playback endpoint (anonymous viewing)
-// GET /api/episodes/507f1f77bcf86cd799439011/playback
-// Returns: HLS path, qualities, episode metadata for video player
-router.get('/:episodeId/playback', 
-  catchAsync(playbackController.getPlaybackInfo)
-);
-
-// Stream episode (with view count increment)
-// GET /api/episodes/507f1f77bcf86cd799439011/stream
-router.get('/:id/stream', 
-  optionalAuth,
+// Get processing status for specific episode (Admin only)
+// GET /api/episodes/admin/507f1f77bcf86cd799439011/processing-status
+router.get('/admin/:id/processing-status', 
+  adminAuth,
   validateMongoId,
   catchAsync(streamEpisode)
 );
