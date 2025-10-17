@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../../services/api'
+import EditSeriesModal from './EditSeriesModal'
 
 // Enhanced Series Selection Component with better UI
 function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, setSuccess }) {
@@ -15,6 +16,8 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
   const [loading, setLoading] = useState(false)
   const [loadingSeries, setLoadingSeries] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [seriesIdToEdit, setSeriesIdToEdit] = useState(null)
 
   // Status options
   const statusOptions = [
@@ -103,6 +106,36 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
     }
   }
 
+    // Handle edit series
+  const handleEditSeries = (series) => {
+    setSeriesIdToEdit(series)
+    setEditModalOpen(true)
+  }
+
+  // Handle delete series
+  const handleDeleteSeries = async (series) => {
+    if (!window.confirm(`Are you sure you want to delete "${series.title}"?\n\nThis will also delete all seasons and episodes!`)) {
+      return
+    }
+
+    try {
+      const response = await api.delete(`/admin/series/${series._id}`)
+      if (response.data.success) {
+        setSuccess(`Series "${series.title}" deleted successfully`)
+        fetchRecentSeries() // Refresh list
+        setTimeout(() => setSuccess(''), 3000)
+      }
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to delete series')
+    }
+  }
+
+  // Handle edit success
+  const handleEditSuccess = (updatedSeries) => {
+    setSuccess(`Series "${updatedSeries.title}" updated successfully!`)
+    fetchRecentSeries() // Refresh list
+    setTimeout(() => setSuccess(''), 3000)
+  }
   // Reset form
   const resetForm = () => {
     setNewSeries({
@@ -160,43 +193,76 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
               return (
                 <div
                   key={series._id}
-                  onClick={() => {
-                  setUploadData(series) // Pass series directly
-                  setSuccess(`Selected series: "${series.title}"`)
-                  setTimeout(() => {
-                  setSuccess('')
-                  onNext()
-                  }, 1000)
-                  }}
-                  className="group p-5 border border-gray-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 cursor-pointer transition-all duration-200 hover:shadow-lg"
+                  className="group p-5 border border-gray-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 transition-all duration-200 hover:shadow-lg relative"
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <h4 className="font-semibold text-gray-900 group-hover:text-indigo-700 line-clamp-2 flex-1">
-                      {series.title}
-                    </h4>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ml-2 ${statusOption.color}`}>
-                      {statusOption.label}
-                    </span>
-                  </div>
-                  
-                  {series.originalTitle && (
-                    <p className="text-sm text-gray-600 mb-2 line-clamp-1">{series.originalTitle}</p>
-                  )}
-                  
-                  <div className="text-xs text-gray-500 mb-3">
-                    <span className="font-medium">{series.releaseYear}</span>
-                  </div>
-                  
-                  <div className="text-xs text-gray-400 border-t border-gray-100 pt-2">
-                    Last updated: {new Date(series.updatedAt).toLocaleDateString()}
-                  </div>
-                  
-                  <div className="mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="flex items-center text-xs text-indigo-600">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  {/* Action Buttons - Top Right */}
+                  <div className="absolute top-3 right-3 flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEditSeries(series)
+                      }}
+                      className="bg-blue-100 hover:bg-blue-200 text-blue-600 p-2 rounded-lg transition-colors"
+                      title="Edit Series"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      Select this series
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteSeries(series)
+                      }}
+                      className="bg-red-100 hover:bg-red-200 text-red-600 p-2 rounded-lg transition-colors"
+                      title="Delete Series"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Clickable Area - Select Series */}
+                  <div
+                    onClick={() => {
+                      setUploadData(series)
+                      setSuccess(`Selected series: "${series.title}"`)
+                      setTimeout(() => {
+                        setSuccess('')
+                        onNext()
+                      }, 1000)
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between mb-3 pr-20">
+                      <h4 className="font-semibold text-gray-900 group-hover:text-indigo-700 line-clamp-2 flex-1">
+                        {series.title}
+                      </h4>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ml-2 ${statusOption.color}`}>
+                        {statusOption.label}
+                      </span>
+                    </div>
+                    
+                    {series.originalTitle && (
+                      <p className="text-sm text-gray-600 mb-2 line-clamp-1">{series.originalTitle}</p>
+                    )}
+                    
+                    <div className="text-xs text-gray-500 mb-3">
+                      <span className="font-medium">{series.releaseYear}</span>
+                    </div>
+                    
+                    <div className="text-xs text-gray-400 border-t border-gray-100 pt-2">
+                      Last updated: {new Date(series.updatedAt).toLocaleDateString()}
+                    </div>
+                    
+                    <div className="mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center text-xs text-indigo-600">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                        Select this series
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -372,6 +438,16 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
           </div>
         )}
       </div>
+     {/* Edit Series Modal */}
+      <EditSeriesModal
+        series={seriesIdToEdit}
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false)
+          setSeriesIdToEdit(null)
+        }}
+        onSuccess={handleEditSuccess}
+      />
     </div>
   )
 }

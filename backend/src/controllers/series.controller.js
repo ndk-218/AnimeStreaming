@@ -1,5 +1,6 @@
 const seriesService = require('../services/series.service');
-
+const ImageService = require('../services/image.service');
+const Series = require('../models/Series');
 class SeriesController {
   // GET /api/series - Public endpoint for browsing series
   async getSeries(req, res) {
@@ -148,6 +149,83 @@ class SeriesController {
         error: 'Failed to fetch recent series'
       });
     }
+  }
+
+// POST /api/admin/series/:id/banner - Upload series banner image
+async uploadBanner(req, res) {
+  try {
+    const { id } = req.params;
+    
+    // Validate file uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No banner image provided'
+      });
+    }
+
+    console.log(`📤 Uploading banner for series: ${id}`);
+    console.log(`   File: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)}MB)`);
+    
+    // Validate image file
+    const validation = ImageService.validateImageFile(req.file, 10);
+    if (!validation.valid) {
+      await ImageService.deleteImage(req.file.path); // Cleanup
+      return res.status(400).json({
+        success: false,
+        error: validation.error
+      });
+    }
+    
+    // Get existing series
+    const series = await Series.findById(id);
+    if (!series) {
+      await ImageService.deleteImage(req.file.path); // Cleanup
+      return res.status(404).json({
+        success: false,
+        error: 'Series not found'
+      });
+    }
+    
+    // Delete old banner if exists (BEFORE processing new one)
+    if (series.bannerImage) {
+      await ImageService.deleteImage(series.bannerImage);
+    }
+    
+    // Process and save NEW banner image
+    const bannerPath = await ImageService.processSeriesBanner(
+      req.file.path,
+      id
+    );
+    
+    // Update database
+    series.bannerImage = bannerPath;
+    await series.save();
+    
+    console.log(`✅ Banner uploaded successfully: ${bannerPath}`);
+    
+    res.json({
+      success: true,
+      data: {
+        bannerImage: bannerPath,
+        bannerUrl: `/${bannerPath}` // For frontend display
+      },
+      message: 'Banner uploaded successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Banner upload error:', error.message);
+    
+    // Cleanup temp file if exists
+    if (req.file?.path) {
+      await ImageService.deleteImage(req.file.path);
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to upload banner image'
+    });
+  }
   }
 }
 

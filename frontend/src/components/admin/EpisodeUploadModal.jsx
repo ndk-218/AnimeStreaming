@@ -144,6 +144,36 @@ function EpisodeUploadModal({ uploadData, setUploadData, onNext, onBack, setErro
     }
   }
 
+  const handleDeleteEpisode = async () => {
+    if (!selectedEpisode?.isExisting || !selectedEpisode?.episodeId) {
+      setLocalError('Cannot delete: No episode selected')
+      return
+    }
+
+    const confirmMessage = `Are you sure you want to delete Episode ${episodeData.episodeNumber}?\n\nTitle: ${episodeData.title}\n\nThis will permanently delete the video file and cannot be undone!`
+    
+    if (!window.confirm(confirmMessage)) {
+      return
+    }
+
+    try {
+      setUploading(true)
+      const response = await api.delete(`/episodes/admin/${selectedEpisode.episodeId}`)
+      
+      if (response.data.success) {
+        setSuccess(`Episode ${episodeData.episodeNumber} deleted successfully!`)
+        closeModal()
+        // Refresh episode list by re-mounting EpisodeSelector
+        setTimeout(() => setSuccess(''), 3000)
+      }
+    } catch (error) {
+      console.error('❌ Delete episode error:', error)
+      setLocalError(error.response?.data?.error || 'Failed to delete episode')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const formatSize = (bytes) => {
     if (!bytes) return '0 B'
     const k = 1024, sizes = ['B', 'KB', 'MB', 'GB']
@@ -264,14 +294,33 @@ function EpisodeUploadModal({ uploadData, setUploadData, onNext, onBack, setErro
               )}
             </div>
 
-            <div className="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeModal} disabled={uploading} className="px-4 py-2 border rounded-lg hover:bg-gray-100 disabled:opacity-50">
-                Cancel
-              </button>
-              <button onClick={uploadEpisode} disabled={uploading || !episodeData.title.trim() || !episodeData.videoFile}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-                {uploading ? `Uploading ${uploadProgress}%` : selectedEpisode?.isExisting ? 'Replace Video' : 'Upload Video'}
-              </button>
+            <div className="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-between items-center">
+              {/* Left side - Delete button (only for existing episodes) */}
+              <div>
+                {selectedEpisode?.isExisting && selectedEpisode?.episodeId && (
+                  <button
+                    onClick={handleDeleteEpisode}
+                    disabled={uploading}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center transition-colors"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Episode
+                  </button>
+                )}
+              </div>
+
+              {/* Right side - Cancel & Upload/Replace buttons */}
+              <div className="flex space-x-3">
+                <button onClick={closeModal} disabled={uploading} className="px-4 py-2 border rounded-lg hover:bg-gray-100 disabled:opacity-50">
+                  Cancel
+                </button>
+                <button onClick={uploadEpisode} disabled={uploading || !episodeData.title.trim() || !episodeData.videoFile}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                  {uploading ? `Uploading ${uploadProgress}%` : selectedEpisode?.isExisting ? 'Replace Video' : 'Upload Video'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

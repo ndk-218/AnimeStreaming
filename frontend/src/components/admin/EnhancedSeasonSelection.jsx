@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import api from '../../services/api'
+import EditSeasonModal from './EditSeasonModal'
 import { studioService, genreService } from '../../services/contentService'
 import MultiSelectInput from '../common/MultiSelectInput'
 
-// Enhanced Season Selection Component with Studio and Genres
+// Enhanced Season Selection Component - Now Season Detail Page
 function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons, onNext, onBack, setError, setSuccess }) {
   const [existingSeasons, setExistingSeasons] = useState(prefetchedSeasons || [])
   const [showCreateNew, setShowCreateNew] = useState(false)
@@ -14,11 +15,13 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
     releaseYear: new Date().getFullYear(),
     description: '',
     status: 'upcoming',
-    studios: [], // Array of studio names
-    genres: []   // Array of genre names
+    studios: [],
+    genres: []
   })
   const [loading, setLoading] = useState(false)
   const [loadingSeasons, setLoadingSeasons] = useState(!prefetchedSeasons)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [seasonToEdit, setSeasonToEdit] = useState(null)
 
   // Season type options
   const seasonTypeOptions = [
@@ -138,6 +141,45 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
     }
   }
 
+  // Handle edit season
+  const handleEditSeason = (season) => {
+    setSeasonToEdit(season)
+    setEditModalOpen(true)
+  }
+
+  // Handle delete season
+  const handleDeleteSeason = async (season) => {
+    const episodeCount = season.episodeCount || 0
+    
+    if (episodeCount > 0) {
+      setError(`Cannot delete season "${season.title}". It contains ${episodeCount} episode(s). Please delete all episodes first.`)
+      setTimeout(() => setError(''), 5000)
+      return
+    }
+
+    if (!window.confirm(`Are you sure you want to delete "${season.title}"?`)) {
+      return
+    }
+
+    try {
+      const response = await api.delete(`/admin/seasons/${season._id}`)
+      if (response.data.success) {
+        setSuccess(`Season "${season.title}" deleted successfully`)
+        fetchExistingSeasons() // Refresh list
+        setTimeout(() => setSuccess(''), 3000)
+      }
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to delete season')
+    }
+  }
+
+  // Handle edit success
+  const handleEditSuccess = (message) => {
+    setSuccess(message)
+    fetchExistingSeasons() // Refresh list
+    setTimeout(() => setSuccess(''), 3000)
+  }
+
   const resetForm = () => {
     setNewSeason({
       title: '',
@@ -198,42 +240,75 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
               return (
                 <div
                   key={season._id}
-                  onClick={() => {
-                    setUploadData(prev => ({ ...prev, season }))
-                    setSuccess(`Selected season: "${season.title}"`)
-                    setTimeout(() => {
-                      setSuccess('')
-                      onNext()
-                    }, 1000)
-                  }}
-                  className="group p-4 border border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 cursor-pointer transition-all duration-200 hover:shadow-md"
+                  className="group p-4 border border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition-all duration-200 hover:shadow-md relative"
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <h4 className="font-semibold text-gray-900 group-hover:text-indigo-700">
-                      {season.title}
-                    </h4>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusOption.color}`}>
-                      {statusOption.label}
-                    </span>
-                  </div>
-                  
-                  <div className="text-xs text-gray-500 mb-2">
-                    <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md mr-2">
-                      {typeOption.label}
-                    </span>
-                    <span>{season.releaseYear}</span>
-                  </div>
-                  
-                  <div className="text-xs text-gray-400">
-                    {season.episodeCount || 0} episodes
-                  </div>
-                  
-                  <div className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="flex items-center text-xs text-indigo-600">
-                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  {/* Action Buttons - Top Right */}
+                  <div className="absolute top-3 right-3 flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEditSeason(season)
+                      }}
+                      className="bg-blue-100 hover:bg-blue-200 text-blue-600 p-2 rounded-lg transition-colors"
+                      title="Edit Season"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      Select this season
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteSeason(season)
+                      }}
+                      className="bg-red-100 hover:bg-red-200 text-red-600 p-2 rounded-lg transition-colors"
+                      title="Delete Season"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Clickable Area - Select Season */}
+                  <div
+                    onClick={() => {
+                      setUploadData(prev => ({ ...prev, season }))
+                      setSuccess(`Selected season: "${season.title}"`)
+                      setTimeout(() => {
+                        setSuccess('')
+                        onNext()
+                      }, 1000)
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between mb-2 pr-20">
+                      <h4 className="font-semibold text-gray-900 group-hover:text-indigo-700">
+                        {season.title}
+                      </h4>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusOption.color}`}>
+                        {statusOption.label}
+                      </span>
+                    </div>
+                    
+                    <div className="text-xs text-gray-500 mb-2">
+                      <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md mr-2">
+                        {typeOption.label}
+                      </span>
+                      <span>{season.releaseYear}</span>
+                    </div>
+                    
+                    <div className="text-xs text-gray-400">
+                      {season.episodeCount || 0} episodes
+                    </div>
+                    
+                    <div className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center text-xs text-indigo-600">
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                        Select this season
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -464,6 +539,17 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
           </div>
         )}
       </div>
+
+      {/* Edit Season Modal */}
+      <EditSeasonModal
+        season={seasonToEdit}
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false)
+          setSeasonToEdit(null)
+        }}
+        onSuccess={handleEditSuccess}
+      />
     </div>
   )
 }

@@ -2,6 +2,7 @@
 const Episode = require('../models/Episode');
 const Season = require('../models/Season');
 const Series = require('../models/Series');
+const SeasonService = require('./season.service'); // ADD: Import SeasonService
 const path = require('path');
 const fs = require('fs-extra');
 
@@ -58,6 +59,10 @@ class EpisodeService {
       
       // Move file from temp to organized uploads folder
       await this.organizeVideoFile(episode._id, data.originalFile);
+
+      // FIX: Auto-update season episode count
+      await SeasonService.updateEpisodeCount(data.seasonId);
+      console.log(`📊 Updated episode count for season: ${data.seasonId}`);
 
       return episode;
 
@@ -294,8 +299,15 @@ class EpisodeService {
         }
       }
 
+      // Lưu seasonId trước khi xóa episode
+      const seasonId = episode.seasonId;
+
       // Xóa episode khỏi database
       await Episode.findByIdAndDelete(episodeId);
+      
+      // FIX: Auto-update season episode count sau khi xóa
+      await SeasonService.updateEpisodeCount(seasonId);
+      console.log(`📊 Updated episode count for season: ${seasonId}`);
       
       console.log(`✅ Episode deleted: ${episode.title}`);
       return true;

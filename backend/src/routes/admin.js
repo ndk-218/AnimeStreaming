@@ -13,6 +13,10 @@ const {
   createAdmin
 } = require('../controllers/admin.controller');
 
+// Import controller for image upload
+const seriesController = require('../controllers/series.controller');
+const seasonsController = require('../controllers/seasons.controller');
+
 // Import middleware
 const {
   adminAuth,
@@ -20,6 +24,9 @@ const {
   validateAdminRegister,
   catchAsync
 } = require('../middleware');
+
+// Import upload middleware for images
+const { uploadSingleImage, handleUploadError } = require('../middleware/upload');
 
 // Import validation from express-validator for custom admin validations
 const { body, validationResult } = require('express-validator');
@@ -132,6 +139,28 @@ router.post('/users',
   // TODO: Add super admin check
   validateAdminRegister,
   catchAsync(createAdmin)
+);
+
+/**
+ * ===== CONTENT IMAGE UPLOAD ROUTES =====
+ */
+
+// Upload series banner image
+// PUT /api/admin/series/:id/banner
+router.put('/series/:id/banner',
+  adminAuth,
+  uploadSingleImage,
+  handleUploadError,
+  catchAsync(seriesController.uploadBanner.bind(seriesController))
+);
+
+// Upload season poster image
+// PUT /api/admin/seasons/:id/poster
+router.put('/seasons/:id/poster',
+  adminAuth,
+  uploadSingleImage,
+  handleUploadError,
+  catchAsync(seasonsController.uploadPoster)
 );
 
 /**

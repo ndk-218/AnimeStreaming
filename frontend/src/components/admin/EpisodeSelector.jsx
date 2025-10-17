@@ -45,7 +45,7 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
   const getBatchOptions = () => {
     const maxEpisode = episodes.length > 0 
       ? Math.max(...episodes.map(ep => ep.episodeNumber))
-      : 36 // Default to 1 batch if no episodes
+      : 36
 
     const batches = []
     const batchSize = 36
@@ -64,8 +64,7 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
       currentBatch++
       startEpisode += batchSize
       
-      // Limit to reasonable number of batches
-      if (currentBatch > 28) break // Max ~1000 episodes
+      if (currentBatch > 28) break
     }
 
     return batches
@@ -104,18 +103,18 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
     const isSelected = selectedEpisode?.episodeId === episode._id
     
     if (isSelected) {
-      return 'bg-pink-500 text-white border-pink-600 hover:bg-pink-600' // Selected - Pink
+      return 'bg-pink-500 text-white border-pink-600 hover:bg-pink-600'
     }
     
     switch (episode.processingStatus) {
       case 'completed':
-        return 'bg-blue-500 text-white border-blue-600 hover:bg-blue-600' // Completed - Blue
+        return 'bg-blue-500 text-white border-blue-600 hover:bg-blue-600'
       case 'processing':
-        return 'bg-yellow-500 text-white border-yellow-600 hover:bg-yellow-600' // Processing - Yellow
+        return 'bg-yellow-500 text-white border-yellow-600 hover:bg-yellow-600'
       case 'failed':
-        return 'bg-red-500 text-white border-red-600 hover:bg-red-600' // Failed - Red
+        return 'bg-red-500 text-white border-red-600 hover:bg-red-600'
       default:
-        return 'bg-gray-500 text-white border-gray-600 hover:bg-gray-600' // Pending - Gray
+        return 'bg-gray-500 text-white border-gray-600 hover:bg-gray-600'
     }
   }
 
@@ -150,7 +149,6 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
           </p>
         </div>
         
-        {/* Batch Selector Dropdown - Giống hình mẫu */}
         {batchOptions.length > 0 && (
           <div className="relative">
             <select 
@@ -164,7 +162,6 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
                 </option>
               ))}
             </select>
-            {/* Dropdown Arrow Icon */}
             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -197,21 +194,16 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
         <>
           {/* Episode Grid - 3 rows × 12 columns = 36 episodes per batch */}
           <div className="grid grid-cols-12 gap-2">
-            {/* Render current batch episodes */}
             {Array.from({ length: 36 }, (_, index) => {
               const batchInfo = batchOptions.find(b => b.batch === selectedBatch)
               if (!batchInfo) return null
               
               const episodeNumber = batchInfo.start + index
               
-              // Don't render if beyond batch range
               if (episodeNumber > batchInfo.end) {
-                return (
-                  <div key={`empty-${index}`} className="h-12 w-full" />
-                )
+                return <div key={`empty-${index}`} className="h-12 w-full" />
               }
               
-              // Find existing episode with this number
               const episode = episodes.find(ep => ep.episodeNumber === episodeNumber)
               
               if (episode) {
@@ -250,7 +242,7 @@ const EpisodeSelector = ({ seasonId, onEpisodeSelect, selectedEpisode }) => {
                   </button>
                 )
               } else {
-                // Empty slot - show episode number placeholder
+                // Empty slot
                 return (
                   <button
                     key={`slot-${episodeNumber}`}

@@ -234,12 +234,12 @@ const updateEpisode = async (req, res) => {
     }
 
     // Lọc bỏ các trường không được phép thay đổi
-    const allowedFields = ['title', 'description'];
+    const allowedFields = ['title', 'description', 'episodeNumber'];
     const updateData = {};
     
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
-        updateData[field] = req.body[field];
+        updateData[field] = field === 'episodeNumber' ? parseInt(req.body[field]) : req.body[field];
       }
     });
 

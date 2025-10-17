@@ -165,7 +165,7 @@ class SeriesService {
     }
   }
 
-  // Delete series and all related data
+  // Delete series (protective - only if no seasons exist)
   async deleteSeries(id) {
     try {
       const series = await Series.findById(id);
@@ -174,31 +174,49 @@ class SeriesService {
         return { success: false, error: 'Series not found' };
       }
 
-      // TODO: Delete all seasons and episodes (implement when needed)
+      // PROTECTIVE CHECK: Kiểm tra có seasons không
+      const seasonCount = await Season.countDocuments({ seriesId: id });
+      
+      if (seasonCount > 0) {
+        return { 
+          success: false, 
+          error: `Cannot delete series that contains ${seasonCount} season(s). Please delete all seasons first.` 
+        };
+      }
+
+      // Xóa banner image nếu có
+      if (series.bannerImage) {
+        const ImageService = require('./image.service');
+        await ImageService.deleteImage(series.bannerImage);
+      }
+
+      // Xóa series
       await Series.findByIdAndDelete(id);
 
+      console.log(`✅ Series deleted: ${series.title}`);
       return { success: true, message: 'Series deleted successfully' };
+      
     } catch (error) {
       console.error('Delete series error:', error);
       throw { success: false, error: 'Failed to delete series' };
     }
   }
 
-  // Get recent series for upload interface
-  async getRecentSeries(limit = 10) {
-    try {
-      const series = await Series.find()
-        .sort({ updatedAt: -1 })
-        .limit(limit)
-        .select('title originalTitle releaseYear status createdAt updatedAt')
-        .lean();
+    // Get recent series for upload interface
+    async getRecentSeries(limit = 10) {
+      try {
+        const series = await Series.find()
+          .sort({ updatedAt: -1 })
+          .limit(limit)
+          .select('title originalTitle releaseYear status createdAt updatedAt')
+          .lean();
 
-      return { success: true, data: series };
-    } catch (error) {
-      console.error('Get recent series error:', error);
-      throw { success: false, error: 'Failed to fetch recent series' };
-    }
-  }
+        return { success: true, data: series };
+      } catch (error) {
+        console.error('Get recent series error:', error);
+        throw { success: false, error: 'Failed to fetch recent series' };
+      }
+   }
 
   // Search series for admin interface
   async searchSeries(query, limit = 10) {

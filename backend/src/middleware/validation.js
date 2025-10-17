@@ -135,7 +135,55 @@ const validateUpdateSeason = [
     .isMongoId()
     .withMessage('Invalid season ID'),
     
-  ...validateCreateSeason.slice(0, -1), // Reuse create validation without validateRequest
+  // seriesId - OPTIONAL for update, không cho phép thay đổi
+  body('seriesId')
+    .optional()
+    .isMongoId()
+    .withMessage('Invalid series ID'),
+    
+  body('title')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 200 })
+    .withMessage('Title must be between 1-200 characters'),
+    
+  body('seasonNumber')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Season number must be a non-negative integer'),
+    
+  // seasonType - OPTIONAL for update
+  body('seasonType')
+    .optional()
+    .isIn(['tv', 'movie', 'ova', 'special'])
+    .withMessage('Season type must be: tv, movie, ova, or special'),
+    
+  body('releaseYear')
+    .optional()
+    .isInt({ min: 1900, max: new Date().getFullYear() + 5 })
+    .withMessage('Release year must be between 1900 and future 5 years'),
+    
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage('Description must not exceed 2000 characters'),
+    
+  body('status')
+    .optional()
+    .isIn(['upcoming', 'airing', 'completed', 'cancelled'])
+    .withMessage('Status must be: upcoming, airing, completed, or cancelled'),
+    
+  body('studios')
+    .optional()
+    .isArray()
+    .withMessage('Studios must be an array'),
+    
+  body('genres')
+    .optional()
+    .isArray()
+    .withMessage('Genres must be an array'),
+    
   validateRequest
 ];
 

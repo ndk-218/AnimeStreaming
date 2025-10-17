@@ -1,5 +1,7 @@
 // @ts-nocheck
 const SeasonService = require('../services/season.service');
+const ImageService = require('../services/image.service');
+const Season = require('../models/Season');
 
 /**
  * ===== SEASONS CONTROLLER - JAVASCRIPT VERSION =====
@@ -451,6 +453,86 @@ const getNextSeasonNumber = async (req, res) => {
   }
 };
 
+/**
+ * Upload season poster image
+ * PUT /admin/seasons/:id/poster
+ */
+const uploadPoster = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Validate file uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No poster image provided'
+      });
+    }
+
+    console.log(`📤 Uploading poster for season: ${id}`);
+    console.log(`   File: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)}MB)`);
+    
+    // Validate image file
+    const validation = ImageService.validateImageFile(req.file, 10);
+    if (!validation.valid) {
+      await ImageService.deleteImage(req.file.path); // Cleanup
+      return res.status(400).json({
+        success: false,
+        error: validation.error
+      });
+    }
+    
+    // Get existing season
+    const season = await Season.findById(id);
+    if (!season) {
+      await ImageService.deleteImage(req.file.path); // Cleanup
+      return res.status(404).json({
+        success: false,
+        error: 'Season not found'
+      });
+    }
+    
+    // ✅ FIXED: Delete old poster BEFORE processing new one
+    if (season.posterImage) {
+      await ImageService.deleteImage(season.posterImage);
+    }
+    
+    // Process and save NEW poster image
+    const posterPath = await ImageService.processSeasonPoster(
+      req.file.path,
+      id
+    );
+    
+    // Update database
+    season.posterImage = posterPath;
+    await season.save();
+    
+    console.log(`✅ Poster uploaded successfully: ${posterPath}`);
+    
+    res.json({
+      success: true,
+      data: {
+        posterImage: posterPath,
+        posterUrl: `/${posterPath}` // For frontend display
+      },
+      message: 'Poster uploaded successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Poster upload error:', error.message);
+    
+    // Cleanup temp file if exists
+    if (req.file?.path) {
+      await ImageService.deleteImage(req.file.path);
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to upload poster image'
+    });
+  }
+};
+
 module.exports = {
   createSeason,
   getSeasonById,
@@ -463,6 +545,7 @@ module.exports = {
   getSeasonStats,
   getSeasonByNumber,
   updateEpisodeCount,
-  getMoviesBySeries,        // NEW
-  getNextSeasonNumber       // NEW
+  getMoviesBySeries,        
+  getNextSeasonNumber,
+  uploadPoster         // NEW
 };

@@ -588,6 +588,7 @@ class SeasonService {
       errors: errors
     };
   }
+
 }
 
 module.exports = SeasonService;
