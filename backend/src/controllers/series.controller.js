@@ -27,6 +27,40 @@ class SeriesController {
     }
   }
 
+  // GET /api/series/search - Public endpoint for searching series
+  async searchSeriesPublic(req, res) {
+    try {
+      const { q: searchTerm, limit = 10 } = req.query;
+
+      if (!searchTerm || searchTerm.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          error: 'Search term is required'
+        });
+      }
+
+      const series = await seriesService.searchSeriesWithLatestSeason(
+        searchTerm.trim(), 
+        parseInt(limit)
+      );
+
+      res.json({
+        success: true,
+        data: series,
+        count: series.length,
+        searchTerm: searchTerm.trim()
+      });
+
+    } catch (error) {
+      console.error('❌ Search series error:', error.message);
+      
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
   // GET /api/series/:slug - Public endpoint for single series
   async getSeriesBySlug(req, res) {
     try {

@@ -16,10 +16,16 @@ const IMAGE_CONFIGS = {
     quality: 85,
     format: 'jpeg'
   },
-  seasonPoster: {
+  seriesPoster: {
     width: 680,
     height: 1000,
     quality: 85,
+    format: 'jpeg'
+  },
+  seasonPoster: {
+    width: 600,      // Changed: Perfect 2:3 ratio
+    height: 900,     // 600 * 1.5 = 900
+    quality: 90,     // Higher quality for posters
     format: 'jpeg'
   }
 };
@@ -53,12 +59,14 @@ class ImageService {
       // Process image with Sharp
       await sharp(tempFilePath)
         .resize(config.width, config.height, {
-          fit: 'cover',        // Crop to fit exact dimensions
-          position: 'center'   // Center crop
+          fit: 'cover',        // Crop to fill, no letterbox
+          position: 'center',  // Center crop
+          withoutEnlargement: false  // Allow upscaling if needed
         })
         .jpeg({ 
           quality: config.quality,
-          progressive: true    // Progressive JPEG for better loading
+          progressive: true,    // Progressive JPEG for better loading
+          mozjpeg: true         // Use mozjpeg for better compression
         })
         .toFile(finalPath);
       
@@ -125,6 +133,24 @@ class ImageService {
       destinationDir,
       fileName,
       'seriesBanner'
+    );
+  }
+
+  /**
+   * Process Series Poster
+   * @param {string} tempFilePath - Temp file path
+   * @param {string} seriesId - Series ID
+   * @returns {Promise<string>} - Relative path to saved poster
+   */
+  static async processSeriesPoster(tempFilePath, seriesId) {
+    const destinationDir = path.join(process.cwd(), 'uploads', 'images', 'series', seriesId);
+    const fileName = 'poster.jpg';
+    
+    return await this.processAndSaveImage(
+      tempFilePath,
+      destinationDir,
+      fileName,
+      'seriesPoster'
     );
   }
 

@@ -394,16 +394,15 @@ class SeasonService {
    */
   static async getRecentSeasons(limit = 10) {
     try {
-      const seasons = await Season.find({
-        status: { $in: ['airing', 'completed'] }
-      })
-      .populate('seriesId', 'title slug posterImage')
+      const seasons = await Season.find({})
+      .populate('seriesId', 'title slug posterImage bannerImage description genres studio')
       .populate('studios', 'name')
       .populate('genres', 'name')
-      .select('title seasonNumber seasonType releaseYear posterImage episodeCount status studios genres')
+      .select('title seasonNumber seasonType releaseYear posterImage episodeCount status studios genres description')
       .sort({ createdAt: -1 })
       .limit(limit);
 
+      console.log(`📺 getRecentSeasons: Found ${seasons.length} seasons`);
       return seasons;
 
     } catch (error) {
@@ -561,6 +560,180 @@ class SeasonService {
   }
 
   /**
+   * Lấy top seasons hot (100 ngày gần nhất, sort by viewCount)
+   * @param {number} limit - Số lượng seasons (default: 5)
+   */
+  static async getTopSeasons(limit = 5) {
+    try {
+      // Tính ngày 100 ngày trước
+      const hundredDaysAgo = new Date();
+      hundredDaysAgo.setDate(hundredDaysAgo.getDate() - 100);
+
+      const seasons = await Season.find({
+        createdAt: { $gte: hundredDaysAgo }
+        // Removed status filter to show all seasons
+      })
+        .populate('seriesId', 'title slug posterImage')
+        .populate('genres', 'name')
+        .populate('studios', 'name')
+        .select('title seasonNumber seasonType releaseYear posterImage viewCount episodeCount status createdAt seriesId genres studios')
+        .sort({ viewCount: -1 }) // Sort by views DESC
+        .limit(limit)
+        .lean();
+
+      // Thêm thông tin episode mới nhất cho seasons đang airing
+      const seasonsWithEpisodeInfo = await Promise.all(
+        seasons.map(async (season) => {
+          if (season.status === 'airing') {
+            // Lấy episode mới nhất
+            const latestEpisode = await Episode.findOne({
+              seasonId: season._id,
+              processingStatus: 'completed'
+            })
+              .select('episodeNumber')
+              .sort({ episodeNumber: -1 })
+              .lean();
+
+            return {
+              ...season,
+              latestEpisode: latestEpisode ? latestEpisode.episodeNumber : 0
+            };
+          }
+          return season;
+        })
+      );
+
+      console.log(`🔥 getTopSeasons: Found ${seasonsWithEpisodeInfo.length} hot seasons`);
+      return seasonsWithEpisodeInfo;
+
+    } catch (error) {
+      console.error('❌ Error getting top seasons:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy trending genres: Top 3 genres với tổng views cao nhất
+   * Mỗi genre trả về top 5 seasons có nhiều views nhất
+   * OPTIMIZED: Single aggregation query
+   */
+  static async getTrendingGenres() {
+    try {
+      // Single optimized aggregation query
+      const pipeline = [
+        // Step 1: Lookup episodes to get view counts
+        {
+          $lookup: {
+            from: 'episodes',
+            localField: '_id',
+            foreignField: 'seasonId',
+            as: 'episodes'
+          }
+        },
+        // Step 2: Calculate total views for each season
+        {
+          $addFields: {
+            totalViews: { $sum: '$episodes.viewCount' }
+          }
+        },
+        // Step 3: Lookup series info
+        {
+          $lookup: {
+            from: 'series',
+            localField: 'seriesId',
+            foreignField: '_id',
+            as: 'series'
+          }
+        },
+        {
+          $unwind: '$series'
+        },
+        // Step 4: Unwind genres to process each genre separately
+        {
+          $unwind: '$genres'
+        },
+        // Step 5: Lookup genre info
+        {
+          $lookup: {
+            from: 'genres',
+            localField: 'genres',
+            foreignField: '_id',
+            as: 'genreInfo'
+          }
+        },
+        {
+          $unwind: '$genreInfo'
+        },
+        // Step 6: Sort by views (descending)
+        {
+          $sort: { totalViews: -1 }
+        },
+        // Step 7: Group by genre and collect top seasons
+        {
+          $group: {
+            _id: '$genreInfo._id',
+            genreName: { $first: '$genreInfo.name' },
+            totalGenreViews: { $sum: '$totalViews' },
+            seasons: {
+              $push: {
+                _id: '$_id',
+                title: '$title',
+                seasonNumber: '$seasonNumber',
+                seasonType: '$seasonType',
+                posterImage: '$posterImage',
+                episodeCount: '$episodeCount',
+                totalViews: '$totalViews',
+                series: {
+                  _id: '$series._id',
+                  title: '$series.title',
+                  slug: '$series.slug',
+                  posterImage: '$series.posterImage'
+                }
+              }
+            }
+          }
+        },
+        // Step 8: Sort genres by total views
+        {
+          $sort: { totalGenreViews: -1 }
+        },
+        // Step 9: Limit to top 3 genres
+        {
+          $limit: 3
+        },
+        // Step 10: Limit seasons to top 5 per genre
+        {
+          $project: {
+            _id: 1,
+            genreName: 1,
+            totalGenreViews: 1,
+            seasons: { $slice: ['$seasons', 5] } // Take only top 5
+          }
+        }
+      ];
+
+      const results = await Season.aggregate(pipeline);
+
+      // Format response
+      const formatted = results.map(result => ({
+        genre: {
+          _id: result._id,
+          name: result.genreName
+        },
+        totalViews: result.totalGenreViews,
+        seasons: result.seasons
+      }));
+
+      console.log(`🔥 Trending genres: ${formatted.map(r => `${r.genre.name} (${r.totalViews} views)`).join(', ')}`);
+      return formatted;
+
+    } catch (error) {
+      console.error('❌ Error getting trending genres:', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Validate season data trước khi tạo
    */
   static validateSeasonData(data) {
@@ -587,6 +760,151 @@ class SeasonService {
       isValid: errors.length === 0,
       errors: errors
     };
+  }
+
+  /**
+   * Advanced Search Seasons với filters
+   * @param {Object} filters - { seasonTypes, genres, studios, yearStart, yearEnd, page, limit }
+   * @returns {Object} - { seasons, pagination }
+   */
+  static async advancedSearchSeasons(filters = {}) {
+    try {
+      const {
+        seasonTypes = [], // ['tv', 'movie', 'ova', 'special']
+        genres = [],      // Array of genre names
+        studios = [],     // Array of studio names
+        yearStart = null, // Năm bắt đầu
+        yearEnd = null,   // Năm kết thúc
+        page = 1,
+        limit = 24        // 4 rows x 6 columns
+      } = filters;
+
+      // Build query
+      const query = {};
+
+      // Filter by season types
+      if (seasonTypes.length > 0) {
+        query.seasonType = { $in: seasonTypes };
+      }
+
+      // Filter by release year range
+      if (yearStart !== null || yearEnd !== null) {
+        query.releaseYear = {};
+        if (yearStart !== null) {
+          query.releaseYear.$gte = parseInt(yearStart);
+        }
+        if (yearEnd !== null) {
+          query.releaseYear.$lte = parseInt(yearEnd);
+        }
+      }
+
+      // Build aggregation pipeline
+      const pipeline = [
+        // Match basic filters
+        { $match: query },
+
+        // Lookup series info
+        {
+          $lookup: {
+            from: 'series',
+            localField: 'seriesId',
+            foreignField: '_id',
+            as: 'series'
+          }
+        },
+        { $unwind: '$series' },
+
+        // Lookup genres
+        {
+          $lookup: {
+            from: 'genres',
+            localField: 'genres',
+            foreignField: '_id',
+            as: 'genreDetails'
+          }
+        },
+
+        // Lookup studios
+        {
+          $lookup: {
+            from: 'studios',
+            localField: 'studios',
+            foreignField: '_id',
+            as: 'studioDetails'
+          }
+        }
+      ];
+
+      // Filter by genres (if specified)
+      if (genres.length > 0) {
+        pipeline.push({
+          $match: {
+            'genreDetails.name': { $in: genres }
+          }
+        });
+      }
+
+      // Filter by studios (if specified)
+      if (studios.length > 0) {
+        pipeline.push({
+          $match: {
+            'studioDetails.name': { $in: studios }
+          }
+        });
+      }
+
+      // Project fields
+      pipeline.push({
+        $project: {
+          _id: 1,
+          title: 1,
+          seasonNumber: 1,
+          seasonType: 1,
+          releaseYear: 1,
+          posterImage: 1,
+          episodeCount: 1,
+          'series._id': 1,
+          'series.title': 1,
+          'series.slug': 1
+        }
+      });
+
+      // Sort by releaseYear DESC, then seasonNumber DESC
+      pipeline.push({
+        $sort: { releaseYear: -1, seasonNumber: -1 }
+      });
+
+      // Count total results
+      const countPipeline = [...pipeline, { $count: 'total' }];
+      const countResult = await Season.aggregate(countPipeline);
+      const total = countResult.length > 0 ? countResult[0].total : 0;
+
+      // Pagination
+      const skip = (page - 1) * limit;
+      pipeline.push({ $skip: skip });
+      pipeline.push({ $limit: limit });
+
+      // Execute query
+      const seasons = await Season.aggregate(pipeline);
+
+      console.log(`🔍 Advanced Search: Found ${total} seasons (page ${page}/${Math.ceil(total / limit)})`);
+
+      return {
+        seasons,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(total / limit),
+          totalResults: total,
+          limit: limit,
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPrevPage: page > 1
+        }
+      };
+
+    } catch (error) {
+      console.error('❌ Error in advanced search seasons:', error);
+      throw error;
+    }
   }
 
 }

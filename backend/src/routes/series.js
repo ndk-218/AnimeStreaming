@@ -5,6 +5,7 @@ const { adminAuth } = require('../middleware/auth');
 
 // Public routes - no authentication required
 router.get('/', seriesController.getSeries);
+router.get('/search', seriesController.searchSeriesPublic);
 router.get('/:slug', seriesController.getSeriesBySlug);
 
 // Admin routes - authentication required

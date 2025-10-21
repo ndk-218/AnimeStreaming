@@ -533,6 +533,103 @@ const uploadPoster = async (req, res) => {
   }
 };
 
+/**
+ * Lấy top seasons hot (100 ngày gần nhất)
+ * GET /api/content/top-seasons?limit=5
+ */
+const getTopSeasons = async (req, res) => {
+  try {
+    const { limit = 5 } = req.query;
+
+    const seasons = await SeasonService.getTopSeasons(parseInt(limit));
+
+    res.json({
+      success: true,
+      data: seasons,
+      count: seasons.length
+    });
+
+  } catch (error) {
+    console.error('❌ Get top seasons error:', error.message);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Lấy trending genres: Top 3 genres với tổng views cao nhất
+ * Mỗi genre trả về top 5 seasons có nhiều views nhất
+ * GET /api/seasons/trending-genres
+ */
+const getTrendingGenres = async (req, res) => {
+  try {
+    const trendingGenres = await SeasonService.getTrendingGenres();
+
+    res.json({
+      success: true,
+      data: trendingGenres,
+      count: trendingGenres.length
+    });
+
+  } catch (error) {
+    console.error('❌ Get trending genres error:', error.message);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Advanced Search Seasons với filters
+ * GET /api/seasons/advanced-search?seasonTypes=tv,movie&genres=Action&studios=Mappa&yearStart=2020&yearEnd=2025&page=1&limit=24
+ */
+const advancedSearchSeasons = async (req, res) => {
+  try {
+    const {
+      seasonTypes,  // "tv,movie,ova" -> ['tv', 'movie', 'ova']
+      genres,       // "Action,Adventure" -> ['Action', 'Adventure']
+      studios,      // "Mappa,Toei" -> ['Mappa', 'Toei']
+      yearStart,
+      yearEnd,
+      page = 1,
+      limit = 24
+    } = req.query;
+
+    // Parse comma-separated values
+    const filters = {
+      seasonTypes: seasonTypes ? seasonTypes.split(',').map(s => s.trim()) : [],
+      genres: genres ? genres.split(',').map(g => g.trim()) : [],
+      studios: studios ? studios.split(',').map(s => s.trim()) : [],
+      yearStart: yearStart ? parseInt(yearStart) : null,
+      yearEnd: yearEnd ? parseInt(yearEnd) : null,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    };
+
+    const result = await SeasonService.advancedSearchSeasons(filters);
+
+    res.json({
+      success: true,
+      data: result.seasons,
+      pagination: result.pagination,
+      filters: filters
+    });
+
+  } catch (error) {
+    console.error('❌ Advanced search error:', error.message);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createSeason,
   getSeasonById,
@@ -547,5 +644,8 @@ module.exports = {
   updateEpisodeCount,
   getMoviesBySeries,        
   getNextSeasonNumber,
-  uploadPoster         // NEW
+  uploadPoster,
+  getTopSeasons,
+  getTrendingGenres,
+  advancedSearchSeasons
 };

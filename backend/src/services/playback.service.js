@@ -32,10 +32,11 @@ class PlaybackService {
         throw new Error('HLS files not available for this episode');
       }
 
-      // 4. Tăng view count (async, không cần await)
-      this.incrementViewCount(episodeId);
+      // ❌ REMOVED: Auto view increment
+      // View counting is now handled by frontend after 10 seconds of watching
+      // Frontend will call POST /api/episodes/:id/view
 
-      // 5. Format response data
+      // 4. Format response data
       const playbackData = {
         episode: {
           id: episode._id,
@@ -73,6 +74,7 @@ class PlaybackService {
         }))
       };
 
+      console.log(`📺 Playback info loaded for episode: ${episode.title} (ID: ${episodeId})`);
       return playbackData;
 
     } catch (error) {
@@ -82,37 +84,45 @@ class PlaybackService {
   }
 
   /**
-   * Tăng view count của episode (fire-and-forget)
-   * @param {string} episodeId 
+   * Lấy danh sách episodes của season với batch pagination
+   * @param {string} seasonId - Season ID
+   * @param {number} batch - Batch number (default: 1)
+   * @param {number} limit - Episodes per batch (default: 24)
+   * @returns {Promise<Object>} - Episodes with pagination info
    */
-  async incrementViewCount(episodeId) {
+  async getSeasonEpisodes(seasonId, batch = 1, limit = 24) {
     try {
-      await Episode.findByIdAndUpdate(
-        episodeId,
-        { $inc: { viewCount: 1 } },
-        { new: false } // Không cần return document
-      );
-    } catch (error) {
-      console.error('Failed to increment view count:', error);
-      // Không throw error vì đây là non-critical operation
-    }
-  }
+      const skip = (batch - 1) * limit;
 
-  /**
-   * Lấy danh sách episodes của cùng season (để next/previous)
-   * @param {string} seasonId 
-   * @returns {Promise<Array>} - List of episodes
-   */
-  async getSeasonEpisodes(seasonId) {
-    try {
+      // Get episodes for this batch
       const episodes = await Episode.find({
         seasonId,
         processingStatus: 'completed'
       })
         .select('episodeNumber title thumbnail duration')
-        .sort({ episodeNumber: 1 });
+        .sort({ episodeNumber: 1 })
+        .skip(skip)
+        .limit(limit);
 
-      return episodes;
+      // Get total count for pagination
+      const totalEpisodes = await Episode.countDocuments({
+        seasonId,
+        processingStatus: 'completed'
+      });
+
+      const totalBatches = Math.ceil(totalEpisodes / limit);
+
+      console.log(`📺 PlaybackService: Found ${episodes.length} episodes (Batch ${batch}/${totalBatches})`);
+
+      return {
+        episodes,
+        pagination: {
+          currentBatch: batch,
+          totalBatches,
+          totalEpisodes,
+          episodesPerBatch: limit
+        }
+      };
     } catch (error) {
       console.error('PlaybackService.getSeasonEpisodes error:', error);
       throw error;

@@ -1,6 +1,7 @@
 // @ts-nocheck
 const EpisodeService = require('../services/episode.service');
 const path = require('path');
+const fs = require('fs-extra');
 
 /**
  * ===== EPISODES CONTROLLER - JAVASCRIPT VERSION =====
@@ -54,16 +55,24 @@ const createEpisode = async (req, res) => {
     // Add video to processing queue
     const { addVideoProcessingJob } = require('../config/queue');
 
-    // Tạo path từ episodeId (file đã được organize trong service)
-    const videoPath = path.join(
+    // ✅ FIX: Dynamic detect file extension
+    const episodeDir = path.join(
       process.cwd(),
       'uploads',
       'videos',
-      episode._id.toString(),
-      'original.mp4'
+      episode._id.toString()
     );
-
+    
+    const files = await fs.readdir(episodeDir);
+    const originalFile = files.find(f => f.startsWith('original.'));
+    
+    if (!originalFile) {
+      throw new Error(`Original video file not found in ${episodeDir}`);
+    }
+    
+    const videoPath = path.join(episodeDir, originalFile);
     console.log('📹 Video file path:', videoPath);
+    console.log('   File extension:', path.extname(originalFile));
 
     await addVideoProcessingJob(
       episode._id.toString(), 
@@ -170,7 +179,8 @@ const streamEpisode = async (req, res) => {
     }
 
     // Tăng view count
-    await EpisodeService.incrementViewCount(episode._id);
+    // ❌ REMOVED: Double counting issue - view already incremented in playback endpoint
+    // await EpisodeService.incrementViewCount(episode._id);
 
     // Lấy next và previous episodes
     const [nextEpisode, previousEpisode] = await Promise.all([
@@ -210,6 +220,52 @@ const streamEpisode = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Stream episode error:', error.message);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Increment view count cho episode (debounced từ frontend)
+ * POST /api/episodes/:id/view
+ */
+const incrementView = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate episode ID format
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid episode ID format'
+      });
+    }
+
+    // Tăng view count (cascade update Season + Genres)
+    const episode = await EpisodeService.incrementViewCount(id);
+
+    if (!episode) {
+      return res.status(404).json({
+        success: false,
+        error: 'Episode not found'
+      });
+    }
+
+    console.log(`👁️ View incremented via API: Episode ${episode.episodeNumber} (${episode.viewCount} views)`);
+
+    res.json({
+      success: true,
+      data: {
+        viewCount: episode.viewCount
+      },
+      message: 'View count incremented successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Increment view error:', error.message);
     
     res.status(500).json({
       success: false,
@@ -517,15 +573,25 @@ const replaceEpisodeVideo = async (req, res) => {
       throw new Error('Failed to initialize video processing queue');
     }
 
-    const videoPath = path.join(
+    // ✅ FIX: Dynamic detect file extension instead of hard-coding .mp4
+    const episodeDir = path.join(
       process.cwd(),
       'uploads',
       'videos',
-      episodeId,
-      'original.mp4'
+      episodeId
     );
-
-    console.log('📹 Video path for processing:', videoPath);
+    
+    // Find original video file (could be .mp4, .mkv, .avi, etc.)
+    const files = await fs.readdir(episodeDir);
+    const originalFile = files.find(f => f.startsWith('original.'));
+    
+    if (!originalFile) {
+      throw new Error(`Original video file not found in ${episodeDir}`);
+    }
+    
+    const videoPath = path.join(episodeDir, originalFile);
+    console.log('🎥 Video path for processing:', videoPath);
+    console.log('   File extension:', path.extname(originalFile));
     
     const job = await addVideoProcessingJob(episodeId, videoPath);
     
@@ -549,17 +615,72 @@ const replaceEpisodeVideo = async (req, res) => {
     });
   }
 };
+/**
+ * Lấy episodes gần đây
+ * GET /episodes/recent
+ */
+const getRecentEpisodes = async (req, res) => {
+  try {
+    const { limit = 12 } = req.query;
+    
+    const episodes = await EpisodeService.getRecentEpisodes(parseInt(limit));
+
+    res.json({
+      success: true,
+      data: episodes,
+      count: episodes.length
+    });
+
+  } catch (error) {
+    console.error('❌ Get recent episodes error:', error.message);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Lấy episodes trending (10 ngày gần nhất + nhiều views)
+ * GET /episodes/trending
+ */
+const getTrendingEpisodes = async (req, res) => {
+  try {
+    const { limit = 12 } = req.query;
+    
+    const episodes = await EpisodeService.getTrendingEpisodes(parseInt(limit));
+
+    res.json({
+      success: true,
+      data: episodes,
+      count: episodes.length
+    });
+
+  } catch (error) {
+    console.error('❌ Get trending episodes error:', error.message);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createEpisode,
   getEpisodeById,
   getEpisodesBySeason,
   streamEpisode,
+  incrementView,
   updateEpisode,
   replaceEpisodeVideo,
   deleteEpisode,
   addSubtitle,
   searchEpisodes,
   getPopularEpisodes,
+  getRecentEpisodes,
+  getTrendingEpisodes,
   getEpisodeStats,
   updateProcessingStatus
 };

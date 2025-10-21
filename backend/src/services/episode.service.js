@@ -77,6 +77,61 @@ class EpisodeService {
    */
   static async organizeVideoFile(episodeId, tempFilePath) {
     try {
+      console.log(`📦 Organizing video file for episode: ${episodeId}`);
+      console.log(`   Temp file path: ${tempFilePath}`);
+      
+      // CRITICAL: Wait and verify file upload is complete
+      let fileExists = false;
+      let attempts = 0;
+      const maxAttempts = 600; // 10 minutes max wait (600 seconds)
+      
+      while (!fileExists && attempts < maxAttempts) {
+        try {
+          fileExists = await fs.pathExists(tempFilePath);
+          if (fileExists) {
+            // Extra verification: check if file is still being written
+            const stats = await fs.stat(tempFilePath);
+            const initialSize = stats.size;
+            
+            // Wait 3 seconds and check if size changed (still uploading)
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            const newStats = await fs.stat(tempFilePath);
+            if (newStats.size !== initialSize) {
+              console.log(`   ⏳ File still uploading... Size: ${(newStats.size / 1024 / 1024).toFixed(2)} MB`);
+              fileExists = false; // Continue waiting
+              attempts++;
+              continue;
+            }
+            
+            console.log(`   ✅ Upload complete! File size: ${(newStats.size / 1024 / 1024).toFixed(2)} MB`);
+            break;
+          }
+        } catch (err) {
+          fileExists = false;
+        }
+        
+        if (!fileExists) {
+          attempts++;
+          if (attempts % 10 === 0) { // Log every 10 seconds
+            console.log(`   ⏳ Waiting for upload to complete... (${attempts}/${maxAttempts} seconds)`);
+          }
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        }
+      }
+      
+      if (!fileExists) {
+        throw new Error(`Temp file not found after ${maxAttempts} seconds: ${tempFilePath}. Upload may have failed.`);
+      }
+      
+      // Check final file size
+      const stats = await fs.stat(tempFilePath);
+      console.log(`   Final file size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+      
+      if (stats.size === 0) {
+        throw new Error('Uploaded file is empty (0 bytes)');
+      }
+      
       // Create organized directory structure
       const episodeDir = path.join(process.cwd(), 'uploads', 'videos', episodeId.toString());
       await fs.ensureDir(episodeDir);
@@ -86,10 +141,12 @@ class EpisodeService {
       const ext = path.extname(originalFilename);
       const newFilename = `original${ext}`;
       const newFilePath = path.join(episodeDir, newFilename);
+      
+      console.log(`   Moving to: ${newFilePath}`);
 
       // Move file from temp to uploads
       await fs.move(tempFilePath, newFilePath, { overwrite: true });
-      console.log(`📦 Organized video file: ${newFilePath}`);
+      console.log(`✅ Video file organized successfully`);
 
       // Update episode with new file path
       await Episode.findByIdAndUpdate(episodeId, {
@@ -118,7 +175,7 @@ class EpisodeService {
     } catch (error) {
       console.error('❌ Error getting episode details:', error.message);
       throw error;
-      }
+    }
   }
 
   /**
@@ -227,16 +284,39 @@ class EpisodeService {
   }
 
   /**
-   * Tăng view count cho episode
+   * Tăng view count cho episode + cascade update Season & Genres
    */
   static async incrementViewCount(episodeId) {
     try {
+      // 1. Tăng view cho episode
       const episode = await Episode.findByIdAndUpdate(
         episodeId,
         { $inc: { viewCount: 1 } },
         { new: true }
       );
 
+      if (!episode) {
+        throw new Error('Episode not found');
+      }
+
+      // 2. Tăng view cho Season (parent)
+      const season = await Season.findByIdAndUpdate(
+        episode.seasonId,
+        { $inc: { viewCount: 1 } },
+        { new: true }
+      );
+
+      // 3. Tăng view cho tất cả Genres của Season
+      if (season && season.genres && season.genres.length > 0) {
+        const Genre = require('../models/Genre');
+        await Genre.updateMany(
+          { _id: { $in: season.genres } },
+          { $inc: { viewCount: 1 } }
+        );
+        console.log(`📊 Updated viewCount for ${season.genres.length} genres`);
+      }
+
+      console.log(`👁️ View incremented: Episode ${episode.episodeNumber} (${episode.viewCount} views)`);
       return episode;
     } catch (error) {
       console.error('❌ Error incrementing view count:', error.message);
@@ -362,6 +442,57 @@ class EpisodeService {
   }
 
   /**
+   * Lấy episodes gần đây
+   */
+  static async getRecentEpisodes(limit = 12) {
+    try {
+      const episodes = await Episode.find({
+        processingStatus: 'completed'
+      })
+      .populate('seriesId', 'title slug posterImage')
+      .populate('seasonId', 'title seasonNumber seasonType posterImage')
+      .select('episodeNumber title description thumbnail viewCount duration')
+      .sort({ createdAt: -1 })
+      .limit(limit);
+
+      console.log(`📺 getRecentEpisodes: Found ${episodes.length} episodes`);
+      return episodes;
+
+    } catch (error) {
+      console.error('❌ Error getting recent episodes:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy episodes trending (10 ngày gần nhất + nhiều views)
+   */
+  static async getTrendingEpisodes(limit = 12) {
+    try {
+      // Calculate date 10 days ago
+      const tenDaysAgo = new Date();
+      tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+
+      const episodes = await Episode.find({
+        processingStatus: 'completed',
+        createdAt: { $gte: tenDaysAgo } // Uploaded within last 10 days
+      })
+      .populate('seriesId', 'title slug posterImage')
+      .populate('seasonId', 'title seasonNumber seasonType posterImage')
+      .select('episodeNumber title description thumbnail viewCount duration createdAt')
+      .sort({ viewCount: -1, createdAt: -1 }) // Sort by views DESC, then by date
+      .limit(limit);
+
+      console.log(`🔥 getTrendingEpisodes: Found ${episodes.length} trending episodes`);
+      return episodes;
+
+    } catch (error) {
+      console.error('❌ Error getting trending episodes:', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Kiểm tra episode có thể phát được không
    */
   static isEpisodePlayable(episode) {
@@ -406,86 +537,85 @@ class EpisodeService {
   }
 
   /**
- * Replace video file cho episode đã tồn tại
- */
-static async replaceEpisodeVideo(episodeId, newVideoPath) {
-  try {
-    const episode = await Episode.findById(episodeId);
-    if (!episode) {
-      throw new Error('Episode not found');
-    }
-
-    const episodeDir = path.join(
-      process.cwd(),
-      'uploads',
-      'videos',
-      episodeId.toString()
-    );
-
-    // CHỈ XÓA HLS FILES, GIỮ LẠI FOLDER GỐC
+   * Replace video file cho episode đã tồn tại
+   */
+  static async replaceEpisodeVideo(episodeId, newVideoPath) {
     try {
-      const items = await fs.readdir(episodeDir);
-      
-      for (const item of items) {
-        const itemPath = path.join(episodeDir, item);
-        const stat = await fs.stat(itemPath);
-        
-        // Xóa HLS folders (720p, 480p, 1080p)
-        if (stat.isDirectory() && (item === '720p' || item === '480p' || item === '1080p' || item === 'subtitles')) {
-          await fs.remove(itemPath);
-          console.log(`🗑️ Removed HLS folder: ${item}`);
-        }
-        
-        // Xóa master playlist
-        if (stat.isFile() && item === 'master.m3u8') {
-          await fs.remove(itemPath);
-          console.log(`🗑️ Removed master playlist`);
-        }
-        
-        // Xóa original video cũ
-        if (stat.isFile() && item.startsWith('original.')) {
-          await fs.remove(itemPath);
-          console.log(`🗑️ Removed old original video`);
-        }
+      const episode = await Episode.findById(episodeId);
+      if (!episode) {
+        throw new Error('Episode not found');
       }
+
+      const episodeDir = path.join(
+        process.cwd(),
+        'uploads',
+        'videos',
+        episodeId.toString()
+      );
+
+      // CHỈ XÓA HLS FILES, GIỮ LẠI FOLDER GỐC
+      try {
+        const items = await fs.readdir(episodeDir);
+        
+        for (const item of items) {
+          const itemPath = path.join(episodeDir, item);
+          const stat = await fs.stat(itemPath);
+          
+          // Xóa HLS folders (720p, 480p, 1080p)
+          if (stat.isDirectory() && (item === '720p' || item === '480p' || item === '1080p' || item === 'subtitles')) {
+            await fs.remove(itemPath);
+            console.log(`🗑️ Removed HLS folder: ${item}`);
+          }
+          
+          // Xóa master playlist
+          if (stat.isFile() && item === 'master.m3u8') {
+            await fs.remove(itemPath);
+            console.log(`🗑️ Removed master playlist`);
+          }
+          
+          // Xóa original video cũ
+          if (stat.isFile() && item.startsWith('original.')) {
+            await fs.remove(itemPath);
+            console.log(`🗑️ Removed old original video`);
+          }
+        }
+      } catch (error) {
+        // Nếu folder chưa tồn tại hoặc lỗi khác, tiếp tục
+        console.warn('⚠️ Cleanup warning:', error.message);
+      }
+
+      // Move video file mới vào folder (folder đã tồn tại)
+      const ext = path.extname(path.basename(newVideoPath));
+      const newFilename = `original${ext}`;
+      const newFilePath = path.join(episodeDir, newFilename);
+      
+      // Ensure folder exists
+      await fs.ensureDir(episodeDir);
+      
+      // Move new video
+      await fs.move(newVideoPath, newFilePath, { overwrite: true });
+      console.log(`📦 Organized video file: ${newFilePath}`);
+
+      // Update episode with new file path
+      await Episode.findByIdAndUpdate(episodeId, {
+        originalFile: newFilePath,
+        processingStatus: 'pending',
+        hlsPath: null,
+        qualities: [],
+        subtitles: [],
+        duration: null,
+        thumbnail: null
+      });
+
+      console.log(`🔄 Episode video replaced: ${episode.title}`);
+      
+      return episode;
+
     } catch (error) {
-      // Nếu folder chưa tồn tại hoặc lỗi khác, tiếp tục
-      console.warn('⚠️ Cleanup warning:', error.message);
+      console.error('❌ Error replacing episode video:', error.message);
+      throw error;
     }
-
-    // Move video file mới vào folder (folder đã tồn tại)
-    const ext = path.extname(path.basename(newVideoPath));
-    const newFilename = `original${ext}`;
-    const newFilePath = path.join(episodeDir, newFilename);
-    
-    // Ensure folder exists
-    await fs.ensureDir(episodeDir);
-    
-    // Move new video
-    await fs.move(newVideoPath, newFilePath, { overwrite: true });
-    console.log(`📦 Organized video file: ${newFilePath}`);
-
-    // Update episode with new file path
-    await Episode.findByIdAndUpdate(episodeId, {
-      originalFile: newFilePath,
-      processingStatus: 'pending',
-      hlsPath: null,
-      qualities: [],
-      subtitles: [],
-      duration: null,
-      thumbnail: null
-    });
-
-    console.log(`🔄 Episode video replaced: ${episode.title}`);
-    
-    return episode;
-
-  } catch (error) {
-    console.error('❌ Error replacing episode video:', error.message);
-    throw error;
   }
 }
-}
-
 
 module.exports = EpisodeService;

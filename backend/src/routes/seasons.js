@@ -16,7 +16,9 @@ const {
   getSeasonByNumber,
   updateEpisodeCount,
   getMoviesBySeries,
-  getNextSeasonNumber
+  getNextSeasonNumber,
+  getTrendingGenres,
+  advancedSearchSeasons
 } = require('../controllers/seasons.controller');
 
 const playbackController = require('../controllers/playback.controller');
@@ -43,20 +45,19 @@ const { body, param, query } = require('express-validator');
  * ===== PUBLIC ROUTES (Anonymous access) =====
  */
 
-// Get season by ID với episodes
-// GET /api/seasons/507f1f77bcf86cd799439011?includeProcessing=false
-router.get('/:id', 
-  optionalAuth,
-  validateMongoId,
-  catchAsync(getSeasonById)
-);
-
-// Search seasons
+// Search seasons - MUST be before /:id route
 // GET /api/seasons/search?q=season&limit=20
 router.get('/search', 
   optionalAuth,
   validateSearch,
   catchAsync(searchSeasons)
+);
+
+// Advanced search seasons with filters
+// GET /api/seasons/advanced-search?seasonTypes=tv,movie&genres=Action&yearStart=2020&page=1
+router.get('/advanced-search',
+  optionalAuth,
+  catchAsync(advancedSearchSeasons)
 );
 
 // Get recent seasons
@@ -65,6 +66,21 @@ router.get('/recent',
   optionalAuth,
   validatePagination,
   catchAsync(getRecentSeasons)
+);
+
+// Get trending genres with top seasons
+// GET /api/seasons/trending-genres
+router.get('/trending-genres', 
+  optionalAuth,
+  catchAsync(getTrendingGenres)
+);
+
+// Get season by ID với episodes
+// GET /api/seasons/507f1f77bcf86cd799439011?includeProcessing=false
+router.get('/:id', 
+  optionalAuth,
+  validateMongoId,
+  catchAsync(getSeasonById)
 );
 
 // ✅ THÊM: Get episodes of a season (for playback navigation)

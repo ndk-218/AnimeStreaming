@@ -179,6 +179,45 @@ class ContentController {
       });
     }
   }
+
+  // ========== TRENDING & TOP CONTENT ENDPOINTS (PUBLIC) ==========
+  
+  // GET /api/content/trending-genres?genreLimit=3&seasonLimit=5
+  async getTrendingGenres(req, res) {
+    try {
+      const { genreLimit = 3, seasonLimit = 5 } = req.query;
+      
+      const result = await genreService.getTrendingGenresWithSeasons(
+        parseInt(genreLimit),
+        parseInt(seasonLimit)
+      );
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Get trending genres error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.error || 'Failed to fetch trending genres' 
+      });
+    }
+  }
+
+  // GET /api/content/top-genres?limit=5
+  async getTopGenres(req, res) {
+    try {
+      const { limit = 5 } = req.query;
+      
+      const result = await genreService.getTopGenres(parseInt(limit));
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Get top genres error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.error || 'Failed to fetch top genres' 
+      });
+    }
+  }
 }
 
 module.exports = new ContentController();

@@ -157,6 +157,86 @@ class GenreService {
       throw { success: false, error: 'Failed to process genres' };
     }
   }
+
+  /**
+   * Lấy top genres (sort by viewCount)
+   * @param {number} limit - Số lượng genres (default: 5)
+   */
+  async getTopGenres(limit = 5) {
+    try {
+      const genres = await Genre.find({ isActive: true })
+        .select('name viewCount seriesCount')
+        .sort({ viewCount: -1 })
+        .limit(limit)
+        .lean();
+
+      console.log(`🏆 getTopGenres: Found ${genres.length} top genres`);
+      return {
+        success: true,
+        data: genres
+      };
+    } catch (error) {
+      console.error('Error getting top genres:', error);
+      throw { success: false, error: 'Failed to fetch top genres' };
+    }
+  }
+
+  /**
+   * Lấy trending genres với seasons
+   * @param {number} genreLimit - Số lượng genres (default: 3)
+   * @param {number} seasonLimit - Số lượng seasons per genre (default: 5)
+   */
+  async getTrendingGenresWithSeasons(genreLimit = 3, seasonLimit = 5) {
+    try {
+      // 1. Lấy top genres theo viewCount
+      const topGenres = await Genre.find({ isActive: true })
+        .select('name viewCount')
+        .sort({ viewCount: -1 })
+        .limit(genreLimit)
+        .lean();
+
+      if (topGenres.length === 0) {
+        return {
+          success: true,
+          data: []
+        };
+      }
+
+      // 2. Với mỗi genre, lấy 5 seasons mới nhất có genre đó
+      const genresWithSeasons = await Promise.all(
+        topGenres.map(async (genre) => {
+          const seasons = await Season.find({
+            genres: genre._id,
+            status: { $in: ['airing', 'completed'] } // Chỉ lấy seasons đang phát/hoàn thành
+          })
+            .populate('seriesId', 'title slug')
+            .populate('studios', 'name')
+            .select('title seasonNumber seasonType releaseYear posterImage viewCount episodeCount seriesId studios updatedAt')
+            .sort({ updatedAt: -1 }) // Sort theo updatedAt (đã confirm)
+            .limit(seasonLimit)
+            .lean();
+
+          return {
+            _id: genre._id,
+            name: genre.name,
+            viewCount: genre.viewCount,
+            seasons: seasons
+          };
+        })
+      );
+
+      console.log(`🔥 getTrendingGenres: Found ${genresWithSeasons.length} genres with seasons`);
+
+      return {
+        success: true,
+        data: genresWithSeasons
+      };
+
+    } catch (error) {
+      console.error('Error getting trending genres:', error);
+      throw { success: false, error: 'Failed to fetch trending genres' };
+    }
+  }
 }
 
 module.exports = new GenreService();

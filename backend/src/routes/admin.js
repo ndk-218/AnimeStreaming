@@ -142,6 +142,47 @@ router.post('/users',
 );
 
 /**
+ * ===== CONTENT MANAGEMENT ROUTES (CRUD) =====
+ */
+
+// Series Management
+router.post('/series',
+  (req, res, next) => {
+    console.log('🎯 POST /api/admin/series hit');
+    console.log('   Body:', req.body);
+    next();
+  },
+  adminAuth,
+  catchAsync(seriesController.createSeries.bind(seriesController))
+);
+
+router.put('/series/:id',
+  adminAuth,
+  catchAsync(seriesController.updateSeries.bind(seriesController))
+);
+
+router.delete('/series/:id',
+  adminAuth,
+  catchAsync(seriesController.deleteSeries.bind(seriesController))
+);
+
+// Seasons Management
+router.post('/seasons',
+  adminAuth,
+  catchAsync(seasonsController.createSeason)
+);
+
+router.put('/seasons/:id',
+  adminAuth,
+  catchAsync(seasonsController.updateSeason)
+);
+
+router.delete('/seasons/:id',
+  adminAuth,
+  catchAsync(seasonsController.deleteSeason)
+);
+
+/**
  * ===== CONTENT IMAGE UPLOAD ROUTES =====
  */
 

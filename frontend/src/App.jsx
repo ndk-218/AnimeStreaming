@@ -4,6 +4,9 @@ import './index.css'
 import AdminLogin from './pages/admin/AdminLogin'
 import UploadCenter from './pages/admin/UploadCenter'
 import WatchPage from './pages/WatchPage'
+import HomePage from './pages/HomePage'
+import SeriesDetail from './pages/SeriesDetail/SeriesDetail'
+import AdvancedSearch from './pages/AdvancedSearch/AdvancedSearch'
 
 function App() {
   const [showLogin, setShowLogin] = useState(false)
@@ -398,11 +401,20 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Admin routes */}
-        <Route path="/*" element={<AdminPages />} />
+        {/* Public Homepage */}
+        <Route path="/" element={<HomePage />} />
+        
+        {/* Advanced Search page - Public route */}
+        <Route path="/search" element={<AdvancedSearch />} />
+        
+        {/* Series Detail page - Public route */}
+        <Route path="/series/:slug" element={<SeriesDetail />} />
         
         {/* Watch page - Public route */}
         <Route path="/watch/:episodeId" element={<WatchPage />} />
+        
+        {/* Admin routes */}
+        <Route path="/admin/*" element={<AdminPages />} />
       </Routes>
     </BrowserRouter>
   )

@@ -20,19 +20,28 @@ router.get('/health', (req, res) => {
 });
 
 // ============================================
+// ADMIN ROUTES (Protected)
+// ============================================
+// CRITICAL: Admin routes MUST be mounted FIRST to prevent
+// /api/series from catching /api/admin/series requests
+router.use('/admin', adminRoutes);
+
+// ============================================
 // PUBLIC ROUTES (Anonymous Access)
 // ============================================
 // Series: GET /api/series, GET /api/series/:slug
 // Seasons: GET /api/seasons, GET /api/seasons/:seasonId/episodes  
 // Episodes: GET /api/episodes, GET /api/episodes/:episodeId/playback
+
+// ============================================
+// CONTENT ROUTES (Public for browsing)
+// ============================================
+// Content: GET /api/content/genres, GET /api/content/studios
+router.use('/content', contentRoutes);
+
+// Then mount series/seasons/episodes routes AFTER admin routes
 router.use('/series', seriesRoutes);
 router.use('/seasons', seasonsRoutes);
 router.use('/episodes', episodesRoutes);
-
-// ============================================
-// ADMIN ROUTES (Protected)
-// ============================================
-router.use('/admin', adminRoutes);
-router.use('/admin', contentRoutes);
 
 module.exports = router;

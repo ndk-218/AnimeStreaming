@@ -104,9 +104,17 @@ app.use(compression());
 // Logging
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-// Body parsing
+// Body parsing với timeout cao hơn cho large uploads
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// ===== INCREASE TIMEOUT FOR LARGE FILE UPLOADS =====
+// Timeout cho requests (30 phút cho file 1-2GB)
+app.use((req, res, next) => {
+  req.setTimeout(30 * 60 * 1000); // 30 minutes
+  res.setTimeout(30 * 60 * 1000); // 30 minutes
+  next();
+});
 
 // Static file serving cho HLS streaming
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
@@ -222,6 +230,13 @@ const startServer = async () => {
 🚀 =================================
       `);
     });
+    
+    // ===== SET SERVER TIMEOUTS FOR LARGE FILE UPLOADS =====
+    server.timeout = 30 * 60 * 1000; // 30 minutes
+    server.keepAliveTimeout = 30 * 60 * 1000; // 30 minutes
+    server.headersTimeout = 30 * 60 * 1000 + 5000; // Slightly higher than keepAlive
+    
+    console.log('✅ Server timeouts configured for large file uploads (30 min)');
     
   } catch (error) {
     console.error('❌ Failed to start server:', error);

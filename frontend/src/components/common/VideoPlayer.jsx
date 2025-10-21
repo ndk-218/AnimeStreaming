@@ -1,15 +1,19 @@
 // frontend/src/components/common/VideoPlayer.jsx
-// Component: Minimal HLS Video Player với quality selector
+// Component: Minimal HLS Video Player với quality selector và view tracking
 
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import axios from 'axios';
 
-const VideoPlayer = ({ hlsPath, qualities, autoPlay = true }) => {
+const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true }) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
+  const viewTrackedRef = useRef(false); // Track nếu đã tăng view
+  const watchTimeRef = useRef(0); // Track thời gian xem
   const [currentQuality, setCurrentQuality] = useState('auto');
   const [error, setError] = useState(null);
 
+  // Effect: Setup HLS player
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !hlsPath) return;
@@ -63,6 +67,42 @@ const VideoPlayer = ({ hlsPath, qualities, autoPlay = true }) => {
     }
   }, [hlsPath, autoPlay]);
 
+  // Effect: Track watch time và increment view sau 10 giây
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !episodeId || viewTrackedRef.current) return;
+
+    const handleTimeUpdate = async () => {
+      // Chỉ track khi video đang playing
+      if (!video.paused) {
+        watchTimeRef.current += 1;
+
+        // Sau 10 giây xem → Tăng view count
+        if (watchTimeRef.current >= 10 && !viewTrackedRef.current) {
+          viewTrackedRef.current = true; // Đánh dấu đã tăng view
+          
+          try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const response = await axios.post(`${apiUrl}/api/episodes/${episodeId}/view`);
+            
+            if (response.data.success) {
+              console.log('👁️ View count incremented:', response.data.data.viewCount);
+            }
+          } catch (error) {
+            console.error('❌ Failed to increment view:', error);
+          }
+        }
+      }
+    };
+
+    // Track mỗi giây
+    const interval = setInterval(handleTimeUpdate, 1000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [episodeId]);
+
   // Handle quality change
   const handleQualityChange = (quality) => {
     setCurrentQuality(quality);
@@ -93,12 +133,12 @@ const VideoPlayer = ({ hlsPath, qualities, autoPlay = true }) => {
   }
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto">
-      {/* Video Element */}
+    <div className="relative w-full h-full">
+      {/* Video Element - FULL WIDTH & HEIGHT */}
       <video
         ref={videoRef}
         controls
-        className="w-full rounded-lg shadow-lg bg-black"
+        className="w-full h-full bg-black"
         playsInline
       />
 

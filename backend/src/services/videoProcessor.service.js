@@ -30,6 +30,70 @@ class VideoProcessorService {
         preset: 'fast'
       }
     };
+    
+    // GPU acceleration detection
+    this.gpuAcceleration = {
+      enabled: false,
+      type: null // 'nvenc' (NVIDIA) | 'qsv' (Intel) | 'amf' (AMD)
+    };
+    
+    // Auto-detect GPU on initialization
+    this.detectGPU();
+  }
+  
+  /**
+   * Detect available GPU hardware acceleration
+   */
+  async detectGPU() {
+    console.log('🔍 Detecting GPU hardware acceleration...');
+    
+    try {
+      // Test NVIDIA NVENC (most common for gaming/workstation GPUs)
+      const hasNvenc = await this.testEncoder('h264_nvenc');
+      if (hasNvenc) {
+        this.gpuAcceleration = { enabled: true, type: 'nvenc' };
+        console.log('✅ NVIDIA NVENC detected and enabled');
+        console.log('   🚀 GPU encoding will be 5-10x faster than CPU!');
+        return;
+      }
+      
+      // Test Intel Quick Sync Video
+      const hasQSV = await this.testEncoder('h264_qsv');
+      if (hasQSV) {
+        this.gpuAcceleration = { enabled: true, type: 'qsv' };
+        console.log('✅ Intel QSV detected and enabled');
+        return;
+      }
+      
+      // Test AMD AMF
+      const hasAMF = await this.testEncoder('h264_amf');
+      if (hasAMF) {
+        this.gpuAcceleration = { enabled: true, type: 'amf' };
+        console.log('✅ AMD AMF detected and enabled');
+        return;
+      }
+      
+      console.log('⚠️ No GPU acceleration available, using CPU (libx264)');
+    } catch (error) {
+      console.log('⚠️ GPU detection failed, falling back to CPU');
+    }
+  }
+  
+  /**
+   * Test if encoder is available
+   */
+  testEncoder(encoderName) {
+    return new Promise((resolve) => {
+      ffmpeg()
+        .input('color=c=black:s=256x256:d=1')
+        .inputFormat('lavfi')
+        .videoCodec(encoderName)
+        .outputOptions(['-frames:v 1', '-f null'])
+        .output('-')
+        .on('end', () => resolve(true))
+        .on('error', () => resolve(false))
+        .run();
+    });
   }
 
   /**
@@ -203,6 +267,7 @@ class VideoProcessorService {
     console.log('\n🎬 === HLS CONVERSION START ===');
     console.log(`📂 Output Directory: ${outputDir}`);
     console.log(`📹 Input Path: ${inputPath}`);
+    console.log(`🎮 GPU Acceleration: ${this.gpuAcceleration.enabled ? `Enabled (${this.gpuAcceleration.type.toUpperCase()})` : 'Disabled (CPU)'}`);
     console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
     
     // Determine available qualities based on source resolution
@@ -267,28 +332,76 @@ class VideoProcessorService {
   }
 
   /**
-   * Convert video to specific quality using HLS
+   * Convert video to specific quality using HLS with GPU acceleration
    */
- convertToQuality(inputPath, outputPath, quality, progressCallback) {
-  const preset = this.qualityPresets[quality];
+  convertToQuality(inputPath, outputPath, quality, progressCallback) {
+    const preset = this.qualityPresets[quality];
+    const useGPU = this.gpuAcceleration.enabled;
 
-  return new Promise((resolve, reject) => {
-    // THÊM DÒNG NÀY để log stderr
-    let ffmpegCommand = ffmpeg(inputPath);
-    
-    ffmpegCommand
-      .outputOptions([
-        // Video codec settings
-        '-c:v libx264',
-        `-preset ${preset.preset}`,
-        '-tune animation',
-        `-b:v ${preset.videoBitrate}`,
-        `-maxrate ${preset.videoBitrate}`,
-        `-bufsize ${parseInt(preset.videoBitrate) * 2}k`,
+    return new Promise((resolve, reject) => {
+      let ffmpegCommand = ffmpeg(inputPath);
+      
+      // Base output options
+      const outputOptions = [];
+      
+      // ========== GPU ACCELERATION SETTINGS ==========
+      if (useGPU) {
+        const gpuType = this.gpuAcceleration.type;
+        
+        if (gpuType === 'nvenc') {
+          // NVIDIA NVENC - Fastest and most common
+          outputOptions.push(
+            '-c:v h264_nvenc',
+            '-preset p4', // p1 (fastest) to p7 (slowest), p4 is balanced
+            '-tune hq', // High quality tune
+            '-rc vbr', // Variable bitrate
+            `-b:v ${preset.videoBitrate}`,
+            `-maxrate ${preset.videoBitrate}`,
+            `-bufsize ${parseInt(preset.videoBitrate) * 2}k`,
+            '-profile:v high',
+            '-rc-lookahead 20',
+            '-spatial_aq 1',
+            '-aq-strength 8'
+          );
+        } else if (gpuType === 'qsv') {
+          // Intel Quick Sync
+          outputOptions.push(
+            '-c:v h264_qsv',
+            '-preset medium',
+            `-b:v ${preset.videoBitrate}`,
+            `-maxrate ${preset.videoBitrate}`,
+            `-bufsize ${parseInt(preset.videoBitrate) * 2}k`,
+            '-look_ahead 1'
+          );
+        } else if (gpuType === 'amf') {
+          // AMD AMF
+          outputOptions.push(
+            '-c:v h264_amf',
+            '-quality balanced',
+            `-b:v ${preset.videoBitrate}`,
+            `-maxrate ${preset.videoBitrate}`,
+            `-bufsize ${parseInt(preset.videoBitrate) * 2}k`
+          );
+        }
+      } else {
+        // CPU encoding (fallback)
+        outputOptions.push(
+          '-c:v libx264',
+          `-preset ${preset.preset}`,
+          '-tune animation',
+          `-b:v ${preset.videoBitrate}`,
+          `-maxrate ${preset.videoBitrate}`,
+          `-bufsize ${parseInt(preset.videoBitrate) * 2}k`
+        );
+      }
+      
+      // ========== COMMON SETTINGS ==========
+      outputOptions.push(
+        // Video scaling
         `-vf scale=${preset.resolution}:force_original_aspect_ratio=decrease,pad=ceil(iw/2)*2:ceil(ih/2)*2`,
         '-pix_fmt yuv420p',
         
-        // Audio codec settings
+        // Audio settings (same for GPU/CPU)
         '-c:a aac',
         `-b:a ${preset.audioBitrate}`,
         '-ac 2',
@@ -303,26 +416,31 @@ class VideoProcessorService {
         // Optimization
         '-g 48',
         '-sc_threshold 0'
-      ])
-      .output(outputPath)
-      .on('progress', (progress) => {
-        if (progress.percent) {
-          progressCallback?.(progress.percent);
-        }
-      })
-      // THÊM EVENT LISTENER NÀY:
-      .on('stderr', (stderrLine) => {
-        console.log('[FFmpeg]:', stderrLine);
-      })
-      .on('end', resolve)
-      .on('error', (err, stdout, stderr) => {
-        console.error('❌ FFmpeg error:', err.message);
-        console.error('❌ FFmpeg stderr:', stderr);
-        reject(err);
-      })
-      .run();
-  });
-}
+      );
+      
+      ffmpegCommand
+        .outputOptions(outputOptions)
+        .output(outputPath)
+        .on('progress', (progress) => {
+          if (progress.percent) {
+            progressCallback?.(progress.percent);
+          }
+        })
+        .on('stderr', (stderrLine) => {
+          // Only log important messages to reduce spam
+          if (stderrLine.includes('frame=') || stderrLine.includes('error') || stderrLine.includes('warning')) {
+            console.log('[FFmpeg]:', stderrLine);
+          }
+        })
+        .on('end', resolve)
+        .on('error', (err, stdout, stderr) => {
+          console.error('❌ FFmpeg error:', err.message);
+          console.error('❌ FFmpeg stderr:', stderr);
+          reject(err);
+        })
+        .run();
+    });
+  }
 
   /**
    * Create master playlist for adaptive streaming

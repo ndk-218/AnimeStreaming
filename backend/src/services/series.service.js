@@ -81,28 +81,80 @@ class SeriesService {
     }
   }
 
-  // Get series by slug with seasons populated
+  // Get series by slug with seasons and latest episodes
   async getSeriesBySlug(slug) {
     try {
-      const series = await Series.findOne({ slug })
-        .populate({
-          path: 'seasons',
-          populate: {
-            path: 'studios genres',
-            select: 'name'
-          },
-          options: { sort: { seasonNumber: 1, seasonType: 1 } }
-        })
-        .lean();
+      const series = await Series.findOne({ slug }).lean();
 
       if (!series) {
         return { success: false, error: 'Series not found' };
       }
 
+      // Get all seasons for this series with studios and genres
+      const Season = require('../models/Season');
+      const Episode = require('../models/Episode');
+      
+      const seasons = await Season.find({ seriesId: series._id })
+        .populate('studios', 'name')
+        .populate('genres', 'name')
+        .select('title seasonNumber seasonType releaseYear description posterImage episodeCount status studios genres')
+        .lean();
+
+      // Sort seasons: TV seasons first, then Movies (newest first), then OVA/Special
+      const tvSeasons = seasons.filter(s => s.seasonType === 'tv').sort((a, b) => a.seasonNumber - b.seasonNumber);
+      const movies = seasons.filter(s => s.seasonType === 'movie').sort((a, b) => b.seasonNumber - a.seasonNumber);
+      const ovas = seasons.filter(s => s.seasonType === 'ova');
+      const specials = seasons.filter(s => s.seasonType === 'special');
+      const sortedSeasons = [...tvSeasons, ...movies, ...ovas, ...specials];
+
+      // Get latest episode for each season (by updatedAt)
+      const seasonsWithLatestEpisode = await Promise.all(
+        sortedSeasons.map(async (season) => {
+          const latestEpisode = await Episode.findOne({
+            seasonId: season._id,
+            processingStatus: 'completed'
+          })
+          .select('_id episodeNumber updatedAt')
+          .sort({ updatedAt: -1 })
+          .lean();
+
+          return {
+            ...season,
+            latestEpisode
+          };
+        })
+      );
+
+      // Find default season: Season with most recent episode upload
+      let defaultSeason = null;
+      let latestUploadTime = null;
+
+      for (const season of seasonsWithLatestEpisode) {
+        if (season.latestEpisode) {
+          const uploadTime = new Date(season.latestEpisode.updatedAt).getTime();
+          if (!latestUploadTime || uploadTime > latestUploadTime) {
+            latestUploadTime = uploadTime;
+            defaultSeason = season;
+          }
+        }
+      }
+
+      // If no episodes found, default to first season
+      if (!defaultSeason && seasonsWithLatestEpisode.length > 0) {
+        defaultSeason = seasonsWithLatestEpisode[0];
+      }
+
       // Increment view count
       await Series.findByIdAndUpdate(series._id, { $inc: { viewCount: 1 } });
 
-      return { success: true, data: series };
+      return { 
+        success: true, 
+        data: {
+          series,
+          seasons: seasonsWithLatestEpisode,
+          defaultSeason
+        }
+      };
     } catch (error) {
       console.error('Get series by slug error:', error);
       throw { success: false, error: 'Failed to fetch series' };
@@ -238,6 +290,138 @@ class SeriesService {
     } catch (error) {
       console.error('Search series error:', error);
       return [];
+    }
+  }
+
+  /**
+   * Search series với season mới nhất và episode count (PUBLIC)
+   * Response format:
+   * {
+   *   _id, title, originalTitle, slug,
+   *   latestSeason: { seasonNumber, seasonType, posterImage, maxEpisode }
+   * }
+   */
+  async searchSeriesWithLatestSeason(query, limit = 10) {
+    try {
+      if (!query.trim()) return [];
+
+      const Episode = require('../models/Episode');
+
+      // Step 1: Tìm series khớp với query
+      const series = await Series.find({
+        $or: [
+          { title: { $regex: query.trim(), $options: 'i' } },
+          { originalTitle: { $regex: query.trim(), $options: 'i' } }
+        ]
+      })
+      .select('_id title originalTitle slug')
+      .limit(limit)
+      .lean();
+
+      if (series.length === 0) {
+        return [];
+      }
+
+      // Step 2: Với mỗi series, lấy season mới nhất (theo updatedAt)
+      const seriesWithLatestSeason = await Promise.all(
+        series.map(async (s) => {
+          // Lấy season có episode mới nhất (theo updatedAt của episode)
+          const latestSeasonWithEpisode = await Season.aggregate([
+            // Match seasons của series này
+            { $match: { seriesId: s._id } },
+            
+            // Lookup episodes
+            {
+              $lookup: {
+                from: 'episodes',
+                localField: '_id',
+                foreignField: 'seasonId',
+                as: 'episodes'
+              }
+            },
+            
+            // Chỉ lấy seasons có episodes completed
+            {
+              $match: {
+                'episodes.processingStatus': 'completed'
+              }
+            },
+            
+            // Tính episode lớn nhất và updatedAt mới nhất
+            {
+              $addFields: {
+                maxEpisode: {
+                  $max: {
+                    $map: {
+                      input: {
+                        $filter: {
+                          input: '$episodes',
+                          as: 'ep',
+                          cond: { $eq: ['$$ep.processingStatus', 'completed'] }
+                        }
+                      },
+                      as: 'ep',
+                      in: '$$ep.episodeNumber'
+                    }
+                  }
+                },
+                latestEpisodeUpdate: {
+                  $max: {
+                    $map: {
+                      input: {
+                        $filter: {
+                          input: '$episodes',
+                          as: 'ep',
+                          cond: { $eq: ['$$ep.processingStatus', 'completed'] }
+                        }
+                      },
+                      as: 'ep',
+                      in: '$$ep.updatedAt'
+                    }
+                  }
+                }
+              }
+            },
+            
+            // Sort by episode update time
+            { $sort: { latestEpisodeUpdate: -1 } },
+            
+            // Lấy season mới nhất
+            { $limit: 1 },
+            
+            // Project fields cần thiết
+            {
+              $project: {
+                seasonNumber: 1,
+                seasonType: 1,
+                posterImage: 1,
+                releaseYear: 1,
+                maxEpisode: 1
+              }
+            }
+          ]);
+
+          // Nếu không có season nào có episodes
+          if (latestSeasonWithEpisode.length === 0) {
+            return null;
+          }
+
+          return {
+            ...s,
+            latestSeason: latestSeasonWithEpisode[0]
+          };
+        })
+      );
+
+      // Filter out series không có seasons/episodes
+      const validSeries = seriesWithLatestSeason.filter(s => s !== null);
+
+      console.log(`🔍 Found ${validSeries.length} series matching "${query}"`);
+      return validSeries;
+
+    } catch (error) {
+      console.error('❌ Search series with latest season error:', error);
+      throw error;
     }
   }
 }

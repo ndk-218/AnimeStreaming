@@ -139,6 +139,20 @@ class GenreService {
       return []
     }
   }
+
+  // Get trending genres với seasons (Top 3 genres + 5 seasons each)
+  static async getTrendingGenres() {
+    try {
+      const response = await api.get('/content/trending-genres')
+      if (response.data.success) {
+        return response.data.data
+      }
+      return []
+    } catch (error) {
+      console.error('Get trending genres error:', error)
+      return []
+    }
+  }
 }
 
 // Export services
@@ -155,7 +169,8 @@ export const {
 export const {
   searchGenres,
   getAllGenres,
-  getPopularGenres  
+  getPopularGenres,
+  getTrendingGenres
 } = GenreService
 
 export default {

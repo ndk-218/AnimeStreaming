@@ -8,12 +8,15 @@ const {
   getEpisodeById,
   getEpisodesBySeason,
   streamEpisode,
+  incrementView,
   updateEpisode,
   replaceEpisodeVideo, 
   deleteEpisode,
   addSubtitle,
   searchEpisodes,
   getPopularEpisodes,
+  getRecentEpisodes,
+  getTrendingEpisodes,
   getEpisodeStats,
   updateProcessingStatus
 } = require('../controllers/episodes.controller');
@@ -151,6 +154,22 @@ router.get('/popular',
   catchAsync(getPopularEpisodes)
 );
 
+// Get recent episodes
+// GET /api/episodes/recent?limit=12
+router.get('/recent', 
+  optionalAuth,
+  validatePagination,
+  catchAsync(getRecentEpisodes)
+);
+
+// Get trending episodes (last 10 days + most views)
+// GET /api/episodes/trending?limit=12
+router.get('/trending', 
+  optionalAuth,
+  validatePagination,
+  catchAsync(getTrendingEpisodes)
+);
+
 // Get episodes by season
 // GET /api/episodes/season/507f1f77bcf86cd799439011?playable=true
 router.get('/season/:seasonId', 
@@ -164,6 +183,14 @@ router.get('/season/:seasonId',
 // Returns: HLS path, qualities, episode metadata for video player
 router.get('/:episodeId/playback', 
   catchAsync(playbackController.getPlaybackInfo)
+);
+
+// ✅ NEW: Increment view count (debounced from frontend)
+// POST /api/episodes/507f1f77bcf86cd799439011/view
+router.post('/:id/view',
+  optionalAuth,
+  validateMongoId,
+  catchAsync(incrementView)
 );
 
 // Stream episode (with view count increment)

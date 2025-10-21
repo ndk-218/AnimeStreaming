@@ -18,6 +18,12 @@ const genreSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // ✅ NEW: Track total view count for trending/ranking
+  viewCount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   isActive: {
     type: Boolean,
     default: true
@@ -30,6 +36,8 @@ const genreSchema = new mongoose.Schema({
 genreSchema.index({ name: 'text' });
 // Remove duplicate name index since name field already has unique: true
 genreSchema.index({ isActive: 1 });
+// ✅ NEW: Index for sorting by viewCount
+genreSchema.index({ viewCount: -1 });
 
 // Virtual for search compatibility
 genreSchema.virtual('displayName').get(function() {

@@ -55,12 +55,14 @@ class PlaybackController {
   }
 
   /**
-   * GET /api/seasons/:seasonId/episodes
-   * Lấy danh sách episodes của season (cho next/previous navigation)
+   * GET /api/seasons/:seasonId/episodes?batch=1&limit=24
+   * Lấy danh sách episodes của season với batch pagination
    */
   async getSeasonEpisodes(req, res) {
     try {
       const { seasonId } = req.params;
+      const batch = parseInt(req.query.batch) || 1;
+      const limit = parseInt(req.query.limit) || 24;
 
       // Validate seasonId format
       if (!seasonId.match(/^[0-9a-fA-F]{24}$/)) {
@@ -70,11 +72,11 @@ class PlaybackController {
         });
       }
 
-      const episodes = await playbackService.getSeasonEpisodes(seasonId);
+      const result = await playbackService.getSeasonEpisodes(seasonId, batch, limit);
 
       return res.status(200).json({
         success: true,
-        data: episodes
+        data: result
       });
 
     } catch (error) {
