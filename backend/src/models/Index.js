@@ -7,6 +7,7 @@ const Episode = require('./Episode');
 const Admin = require('./Admin');
 const Studio = require('./Studio');
 const Genre = require('./Genre');
+const User = require('./User');
 
 // Database connection function
 const connectDatabase = async (mongoUri) => {
@@ -33,5 +34,6 @@ module.exports = {
   Episode,
   Admin,
   Studio,
-  Genre
+  Genre,
+  User
 };

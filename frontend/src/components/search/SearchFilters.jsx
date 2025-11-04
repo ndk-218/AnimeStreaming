@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import searchService from '../../services/search.service';
 
-const SearchFilters = ({ onSearch, onClose }) => {
-  // Filter states với 3 giá trị: null (default), 'include' (xanh), 'optional' (vàng), 'exclude' (đỏ)
-  const [seasonTypeFilters, setSeasonTypeFilters] = useState({});
+const SearchFilters = ({ onSearch, onClose, initialFilters = null }) => {
+  // Season type - CHỈ 1 LỰA CHỌN (radio behavior)
+  const [selectedSeasonType, setSelectedSeasonType] = useState(null);
+  
+  // Genres và Studios - Nhiều lựa chọn với state: null, 'include', 'exclude'
   const [genreFilters, setGenreFilters] = useState({});
   const [studioFilters, setStudioFilters] = useState({});
-  const [yearFilters, setYearFilters] = useState({});
+  
+  // Year filters - Phức tạp: quick select (1 năm) HOẶC range + exclude
+  const [selectedYear, setSelectedYear] = useState(null); // Quick select
+  const [excludedYears, setExcludedYears] = useState([]); // Loại trừ
   const [yearStart, setYearStart] = useState('');
   const [yearEnd, setYearEnd] = useState('');
 
@@ -18,6 +23,42 @@ const SearchFilters = ({ onSearch, onClose }) => {
   useEffect(() => {
     fetchFilterData();
   }, []);
+
+  // Apply initial filters từ URL params khi component mount
+  useEffect(() => {
+    if (initialFilters) {
+      // Apply seasonType
+      if (initialFilters.seasonTypes && initialFilters.seasonTypes.length > 0) {
+        setSelectedSeasonType(initialFilters.seasonTypes[0]);
+      }
+      
+      // Apply genres
+      if (initialFilters.genres && initialFilters.genres.length > 0) {
+        const newGenreFilters = {};
+        initialFilters.genres.forEach(genre => {
+          newGenreFilters[genre] = 'include';
+        });
+        setGenreFilters(newGenreFilters);
+      }
+      
+      // Apply studios
+      if (initialFilters.studios && initialFilters.studios.length > 0) {
+        const newStudioFilters = {};
+        initialFilters.studios.forEach(studio => {
+          newStudioFilters[studio] = 'include';
+        });
+        setStudioFilters(newStudioFilters);
+      }
+      
+      // Apply years
+      if (initialFilters.yearStart) {
+        setYearStart(initialFilters.yearStart);
+      }
+      if (initialFilters.yearEnd) {
+        setYearEnd(initialFilters.yearEnd);
+      }
+    }
+  }, [initialFilters]);
 
   const fetchFilterData = async () => {
     try {
@@ -41,7 +82,16 @@ const SearchFilters = ({ onSearch, onClose }) => {
     }
   };
 
-  // Toggle filter state (null -> include -> optional -> exclude -> null)
+  // Toggle season type (CHỈ 1 LỰA CHỌN - radio)
+  const handleSeasonTypeClick = (type) => {
+    if (selectedSeasonType === type) {
+      setSelectedSeasonType(null); // Uncheck nếu click lại
+    } else {
+      setSelectedSeasonType(type); // Chọn type mới
+    }
+  };
+
+  // Toggle genre/studio filter: null -> include -> exclude -> null
   const toggleFilter = (category, value) => {
     const updateState = (prevState) => {
       const current = prevState[value] || null;
@@ -50,8 +100,6 @@ const SearchFilters = ({ onSearch, onClose }) => {
       if (current === null) {
         next = 'include'; // Xanh lá
       } else if (current === 'include') {
-        next = 'optional'; // Vàng
-      } else if (current === 'optional') {
         next = 'exclude'; // Đỏ
       } else {
         next = null; // Reset về default
@@ -63,36 +111,52 @@ const SearchFilters = ({ onSearch, onClose }) => {
       };
     };
 
-    switch (category) {
-      case 'seasonType':
-        setSeasonTypeFilters(updateState);
-        break;
-      case 'genre':
-        setGenreFilters(updateState);
-        break;
-      case 'studio':
-        setStudioFilters(updateState);
-        break;
-      case 'year':
-        setYearFilters(updateState);
-        break;
+    if (category === 'genre') {
+      setGenreFilters(updateState);
+    } else if (category === 'studio') {
+      setStudioFilters(updateState);
     }
   };
 
-  // Get button style based on state - CHỈ ĐỔI BORDER VÀ TEXT COLOR
+  // Handle year button click
+  const handleYearClick = (year) => {
+    const yearStr = year.toString();
+    
+    if (selectedYear === yearStr) {
+      // Click lại năm đã chọn → Uncheck
+      setSelectedYear(null);
+    } else if (excludedYears.includes(yearStr)) {
+      // Đang là excluded (đỏ) → Bỏ exclude
+      setExcludedYears(excludedYears.filter(y => y !== yearStr));
+    } else if (selectedYear === null) {
+      // Chưa chọn năm nào → Chọn năm này
+      setSelectedYear(yearStr);
+    } else {
+      // Đã chọn năm khác → Đổi sang exclude (đỏ)
+      setExcludedYears([...excludedYears, yearStr]);
+    }
+  };
+
+  // Get button style
   const getButtonStyle = (state) => {
     const baseStyle = 'px-3 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer bg-white';
     
     switch (state) {
       case 'include':
         return `${baseStyle} text-green-600 border-2 border-green-600`;
-      case 'optional':
-        return `${baseStyle} text-yellow-600 border-2 border-yellow-600`;
       case 'exclude':
         return `${baseStyle} text-red-600 border-2 border-red-600`;
       default:
         return `${baseStyle} text-gray-700 border border-gray-300 hover:border-gray-400`;
     }
+  };
+
+  // Get year button state
+  const getYearButtonState = (year) => {
+    const yearStr = year.toString();
+    if (selectedYear === yearStr) return 'include';
+    if (excludedYears.includes(yearStr)) return 'exclude';
+    return null;
   };
 
   // Build filters object để gửi lên API
@@ -101,30 +165,41 @@ const SearchFilters = ({ onSearch, onClose }) => {
       seasonTypes: [],
       genres: [],
       studios: [],
-      yearStart: yearStart || null,
-      yearEnd: yearEnd || null
+      yearStart: null,
+      yearEnd: null,
+      excludeYears: []
     };
 
-    // Season types - chỉ lấy 'include'
-    Object.entries(seasonTypeFilters).forEach(([type, state]) => {
-      if (state === 'include') {
-        filters.seasonTypes.push(type);
-      }
-    });
+    // Season type - CHỈ 1
+    if (selectedSeasonType) {
+      filters.seasonTypes = [selectedSeasonType];
+    }
 
-    // Genres - lấy 'include' và 'optional'
+    // Genres - chỉ lấy 'include' (AND logic)
     Object.entries(genreFilters).forEach(([genre, state]) => {
-      if (state === 'include' || state === 'optional') {
+      if (state === 'include') {
         filters.genres.push(genre);
       }
     });
 
-    // Studios - lấy 'include' và 'optional'
+    // Studios - chỉ lấy 'include' (AND logic)
     Object.entries(studioFilters).forEach(([studio, state]) => {
-      if (state === 'include' || state === 'optional') {
+      if (state === 'include') {
         filters.studios.push(studio);
       }
     });
+
+    // Year logic - PRIORITY: Range input > Quick select
+    if (yearStart || yearEnd) {
+      // Có nhập range → Dùng range
+      filters.yearStart = yearStart || null;
+      filters.yearEnd = yearEnd || null;
+      filters.excludeYears = excludedYears; // Loại trừ năm trong range
+    } else if (selectedYear) {
+      // Chỉ chọn 1 năm → Set cả start và end = năm đó
+      filters.yearStart = selectedYear;
+      filters.yearEnd = selectedYear;
+    }
 
     return filters;
   };
@@ -135,10 +210,11 @@ const SearchFilters = ({ onSearch, onClose }) => {
   };
 
   const handleReset = () => {
-    setSeasonTypeFilters({});
+    setSelectedSeasonType(null);
     setGenreFilters({});
     setStudioFilters({});
-    setYearFilters({});
+    setSelectedYear(null);
+    setExcludedYears([]);
     setYearStart('');
     setYearEnd('');
   };
@@ -164,7 +240,7 @@ const SearchFilters = ({ onSearch, onClose }) => {
   return (
     <div className="bg-white border-2 border-gray-300 rounded-lg p-6 shadow-sm">
       
-      {/* Header: Title + Legend + Buttons trong 1 dòng */}
+      {/* Header: Title + Legend + Buttons */}
       <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-dotted border-gray-300">
         <h2 className="text-xl font-bold text-gray-900">Tìm kiếm nâng cao</h2>
         
@@ -175,12 +251,8 @@ const SearchFilters = ({ onSearch, onClose }) => {
             <span className="text-gray-700">Chọn</span>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="w-3 h-3 bg-yellow-600 rounded-full"></span>
-            <span className="text-gray-700">Có thể</span>
-          </div>
-          <div className="flex items-center space-x-2">
             <span className="w-3 h-3 bg-red-600 rounded-full"></span>
-            <span className="text-gray-700">Không chọn</span>
+            <span className="text-gray-700">Loại trừ</span>
           </div>
         </div>
 
@@ -193,12 +265,6 @@ const SearchFilters = ({ onSearch, onClose }) => {
             Đặt lại
           </button>
           <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors text-sm"
-          >
-            Đóng
-          </button>
-          <button
             onClick={handleSearch}
             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-colors shadow-md text-sm"
           >
@@ -207,12 +273,14 @@ const SearchFilters = ({ onSearch, onClose }) => {
         </div>
       </div>
 
-      {/* Filters - Label và buttons cùng 1 dòng */}
+      {/* Filters */}
       <div className="space-y-4">
         
-        {/* Loại phim - 1 dòng */}
+        {/* Loại phim - CHỈ CHỌN 1 (Radio) */}
         <div className="flex items-center pb-4 border-b border-dotted border-gray-300">
-          <span className="font-semibold text-gray-700 w-32 flex-shrink-0">Loại phim:</span>
+          <span className="font-semibold text-gray-700 w-40 flex-shrink-0 text-right pr-4">
+            Loại phim:
+          </span>
           <div className="flex flex-wrap gap-2">
             {[
               { value: 'tv', label: 'TV Series' },
@@ -222,8 +290,8 @@ const SearchFilters = ({ onSearch, onClose }) => {
             ].map(type => (
               <button
                 key={type.value}
-                onClick={() => toggleFilter('seasonType', type.value)}
-                className={getButtonStyle(seasonTypeFilters[type.value])}
+                onClick={() => handleSeasonTypeClick(type.value)}
+                className={getButtonStyle(selectedSeasonType === type.value ? 'include' : null)}
               >
                 {type.label}
               </button>
@@ -231,9 +299,9 @@ const SearchFilters = ({ onSearch, onClose }) => {
           </div>
         </div>
 
-        {/* Thể loại - 1 dòng, wrap */}
+        {/* Thể loại - Nhiều lựa chọn */}
         <div className="flex items-start pb-4 border-b border-dotted border-gray-300">
-          <span className="font-semibold text-gray-700 w-32 flex-shrink-0 pt-1.5">Thể loại:</span>
+          <span className="font-semibold text-gray-700 w-40 flex-shrink-0 text-right pr-4 pt-1.5">Thể loại:</span>
           <div className="flex flex-wrap gap-2 flex-1">
             {genres.map(genre => (
               <button
@@ -247,9 +315,9 @@ const SearchFilters = ({ onSearch, onClose }) => {
           </div>
         </div>
 
-        {/* Studio - 1 dòng, wrap */}
+        {/* Studio - Nhiều lựa chọn */}
         <div className="flex items-start pb-4 border-b border-dotted border-gray-300">
-          <span className="font-semibold text-gray-700 w-32 flex-shrink-0 pt-1.5">Studio:</span>
+          <span className="font-semibold text-gray-700 w-40 flex-shrink-0 text-right pr-4 pt-1.5">Studio:</span>
           <div className="flex flex-wrap gap-2 flex-1">
             {studios.map(studio => (
               <button
@@ -265,7 +333,9 @@ const SearchFilters = ({ onSearch, onClose }) => {
 
         {/* Năm sản xuất */}
         <div className="flex items-start">
-          <span className="font-semibold text-gray-700 w-32 flex-shrink-0 pt-1.5">Năm:</span>
+          <span className="font-semibold text-gray-700 w-40 flex-shrink-0 text-right pr-4 pt-1.5">
+            Năm:
+          </span>
           <div className="flex-1 space-y-3">
             
             {/* Dòng 1: Quick year buttons */}
@@ -273,8 +343,8 @@ const SearchFilters = ({ onSearch, onClose }) => {
               {years.map(year => (
                 <button
                   key={year}
-                  onClick={() => toggleFilter('year', year.toString())}
-                  className={getButtonStyle(yearFilters[year.toString()])}
+                  onClick={() => handleYearClick(year)}
+                  className={getButtonStyle(getYearButtonState(year))}
                 >
                   {year}
                 </button>
@@ -283,12 +353,15 @@ const SearchFilters = ({ onSearch, onClose }) => {
 
             {/* Dòng 2: Custom year range */}
             <div className="flex items-center space-x-3">
-              <span className="text-gray-600 text-sm">Nhập năm:</span>
+              <span className="text-gray-600 text-sm">Nhập khoảng:</span>
               <input
                 type="number"
                 placeholder="Từ năm"
                 value={yearStart}
-                onChange={(e) => setYearStart(e.target.value)}
+                onChange={(e) => {
+                  setYearStart(e.target.value);
+                  setSelectedYear(null); // Clear quick select khi nhập range
+                }}
                 className="w-32 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                 min="1900"
                 max={currentYear}
@@ -298,12 +371,23 @@ const SearchFilters = ({ onSearch, onClose }) => {
                 type="number"
                 placeholder="Đến năm"
                 value={yearEnd}
-                onChange={(e) => setYearEnd(e.target.value)}
+                onChange={(e) => {
+                  setYearEnd(e.target.value);
+                  setSelectedYear(null); // Clear quick select khi nhập range
+                }}
                 className="w-32 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                 min="1900"
                 max={currentYear}
               />
             </div>
+
+            {/* Hiển thị excluded years */}
+            {excludedYears.length > 0 && (
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Loại trừ: </span>
+                <span className="text-red-600">{excludedYears.join(', ')}</span>
+              </div>
+            )}
           </div>
         </div>
 

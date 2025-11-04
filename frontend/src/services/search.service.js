@@ -14,6 +14,8 @@ class SearchService {
         studios = [],
         yearStart = null,
         yearEnd = null,
+        excludeYears = [],
+        sortBy = 'updatedAt',
         page = 1,
         limit = 24
       } = filters;
@@ -40,6 +42,13 @@ class SearchService {
       if (yearEnd) {
         params.append('yearEnd', yearEnd);
       }
+      
+      if (excludeYears.length > 0) {
+        params.append('excludeYears', excludeYears.join(','));
+      }
+      
+      // Add sortBy parameter
+      params.append('sortBy', sortBy);
       
       params.append('page', page);
       params.append('limit', limit);

@@ -764,7 +764,7 @@ class SeasonService {
 
   /**
    * Advanced Search Seasons với filters
-   * @param {Object} filters - { seasonTypes, genres, studios, yearStart, yearEnd, page, limit }
+   * @param {Object} filters - { seasonTypes, genres, studios, yearStart, yearEnd, excludeYears, sortBy, page, limit }
    * @returns {Object} - { seasons, pagination }
    */
   static async advancedSearchSeasons(filters = {}) {
@@ -775,6 +775,8 @@ class SeasonService {
         studios = [],     // Array of studio names
         yearStart = null, // Năm bắt đầu
         yearEnd = null,   // Năm kết thúc
+        excludeYears = [], // Array of years to exclude
+        sortBy = 'updatedAt', // 'title' | 'year' | 'updatedAt'
         page = 1,
         limit = 24        // 4 rows x 6 columns
       } = filters;
@@ -787,14 +789,21 @@ class SeasonService {
         query.seasonType = { $in: seasonTypes };
       }
 
-      // Filter by release year range
-      if (yearStart !== null || yearEnd !== null) {
+      // Filter by release year range WITH EXCLUSIONS
+      if (yearStart !== null || yearEnd !== null || excludeYears.length > 0) {
         query.releaseYear = {};
+        
         if (yearStart !== null) {
           query.releaseYear.$gte = parseInt(yearStart);
         }
         if (yearEnd !== null) {
           query.releaseYear.$lte = parseInt(yearEnd);
+        }
+        
+        // Loại trừ các năm cụ thể
+        if (excludeYears.length > 0) {
+          const excludeYearsInt = excludeYears.map(y => parseInt(y));
+          query.releaseYear.$nin = excludeYearsInt;
         }
       }
 
@@ -835,20 +844,30 @@ class SeasonService {
         }
       ];
 
-      // Filter by genres (if specified)
+      // Filter by genres (AND logic - phải có TẤT CẢ genres được chọn)
       if (genres.length > 0) {
         pipeline.push({
           $match: {
-            'genreDetails.name': { $in: genres }
+            $expr: {
+              $setIsSubset: [
+                genres,
+                '$genreDetails.name'
+              ]
+            }
           }
         });
       }
 
-      // Filter by studios (if specified)
+      // Filter by studios (AND logic - phải có TẤT CẢ studios được chọn)
       if (studios.length > 0) {
         pipeline.push({
           $match: {
-            'studioDetails.name': { $in: studios }
+            $expr: {
+              $setIsSubset: [
+                studios,
+                '$studioDetails.name'
+              ]
+            }
           }
         });
       }
@@ -863,16 +882,28 @@ class SeasonService {
           releaseYear: 1,
           posterImage: 1,
           episodeCount: 1,
+          updatedAt: 1,
           'series._id': 1,
           'series.title': 1,
           'series.slug': 1
         }
       });
 
-      // Sort by releaseYear DESC, then seasonNumber DESC
-      pipeline.push({
-        $sort: { releaseYear: -1, seasonNumber: -1 }
-      });
+      // Sort based on sortBy parameter
+      let sortStage = {};
+      switch (sortBy) {
+        case 'title':
+          sortStage = { 'series.title': 1, title: 1 }; // A-Z
+          break;
+        case 'year':
+          sortStage = { releaseYear: -1, seasonNumber: -1 }; // Mới nhất first
+          break;
+        case 'updatedAt':
+        default:
+          sortStage = { updatedAt: -1 }; // Mới cập nhật first
+          break;
+      }
+      pipeline.push({ $sort: sortStage });
 
       // Count total results
       const countPipeline = [...pipeline, { $count: 'total' }];

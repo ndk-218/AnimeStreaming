@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import Header from '../components/public/Header';
 import VideoPlayer from '../components/common/VideoPlayer';
@@ -7,10 +7,17 @@ import SeasonSelector from './SeriesDetail/components/SeasonSelector';
 import EpisodeGrid from './SeriesDetail/components/EpisodeGrid';
 import EpisodeBatchNav from './SeriesDetail/components/EpisodeBatchNav';
 import seriesService from '../services/series.service';
+import useAuthStore from '../stores/authStore';
+import watchHistoryService from '../services/watchHistoryService';
 
 const WatchPage = () => {
   const { episodeId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { isAuthenticated } = useAuthStore();
+
+  // Get initial time from query param ?t= OR from watch history
+  const [initialTime, setInitialTime] = useState(parseInt(searchParams.get('t')) || 0);
 
   // Playback data
   const [loading, setLoading] = useState(true);
@@ -25,7 +32,7 @@ const WatchPage = () => {
   const [currentBatch, setCurrentBatch] = useState(1);
   const [pagination, setPagination] = useState(null);
 
-  // Fetch playback data
+  // Fetch playback data + watch history
   useEffect(() => {
     const fetchPlaybackData = async () => {
       try {
@@ -38,6 +45,22 @@ const WatchPage = () => {
         if (response.data.success) {
           const data = response.data.data;
           setPlaybackData(data);
+
+          // If user authenticated AND no time from query param, try to get from watch history
+          if (isAuthenticated && !searchParams.get('t')) {
+            try {
+              const resumeData = await watchHistoryService.getResumeInfo(data.series.id);
+              
+              // If resume episode is THIS episode, set initial time
+              if (resumeData.success && resumeData.data?.episodeId === episodeId) {
+                const resumeTime = resumeData.data.watchedDuration || 0;
+                console.log(`📺 Auto-resume from watch history: ${resumeTime}s`);
+                setInitialTime(resumeTime);
+              }
+            } catch (err) {
+              console.log('No watch history found for this series');
+            }
+          }
 
           // Fetch series seasons for episode selector
           if (data.series?.slug) {
@@ -58,7 +81,7 @@ const WatchPage = () => {
     if (episodeId) {
       fetchPlaybackData();
     }
-  }, [episodeId]);
+  }, [episodeId, isAuthenticated, searchParams]);
 
   // Fetch series seasons
   const fetchSeriesSeasons = async (slug, currentSeasonId) => {
@@ -177,13 +200,14 @@ const WatchPage = () => {
       {/* Header - Fixed */}
       <Header />
 
-      {/* Video Player - FULL SCREEN (no max-width, no centering) */}
+      {/* Video Player - FULL SCREEN with initialTime for resume */}
       <div className="w-full bg-black" style={{ height: 'calc(100vh - 64px)' }}>
         <VideoPlayer
           hlsPath={video.hlsPath}
           qualities={video.qualities}
           episodeId={episodeId}
           autoPlay={true}
+          initialTime={initialTime}
         />
       </div>
 

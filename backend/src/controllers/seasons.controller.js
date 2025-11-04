@@ -586,7 +586,7 @@ const getTrendingGenres = async (req, res) => {
 
 /**
  * Advanced Search Seasons với filters
- * GET /api/seasons/advanced-search?seasonTypes=tv,movie&genres=Action&studios=Mappa&yearStart=2020&yearEnd=2025&page=1&limit=24
+ * GET /api/seasons/advanced-search?seasonTypes=tv,movie&genres=Action&studios=Mappa&yearStart=2020&yearEnd=2025&excludeYears=2022,2024&sortBy=title&page=1&limit=24
  */
 const advancedSearchSeasons = async (req, res) => {
   try {
@@ -596,6 +596,8 @@ const advancedSearchSeasons = async (req, res) => {
       studios,      // "Mappa,Toei" -> ['Mappa', 'Toei']
       yearStart,
       yearEnd,
+      excludeYears, // "2022,2024" -> ['2022', '2024']
+      sortBy = 'updatedAt', // 'title' | 'year' | 'updatedAt'
       page = 1,
       limit = 24
     } = req.query;
@@ -607,6 +609,8 @@ const advancedSearchSeasons = async (req, res) => {
       studios: studios ? studios.split(',').map(s => s.trim()) : [],
       yearStart: yearStart ? parseInt(yearStart) : null,
       yearEnd: yearEnd ? parseInt(yearEnd) : null,
+      excludeYears: excludeYears ? excludeYears.split(',').map(y => y.trim()) : [],
+      sortBy: sortBy, // Pass sortBy to service
       page: parseInt(page),
       limit: parseInt(limit)
     };

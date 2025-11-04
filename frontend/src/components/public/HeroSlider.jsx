@@ -65,18 +65,55 @@ const HeroSlider = () => {
     setTimeout(() => setIsAutoPlaying(true), 10000);
   };
 
-  const handlePlayClick = () => {
+  /**
+   * Handle "Xem Ngay" button click
+   * Navigate to first episode (or latest episode if available)
+   * WatchPage will handle resume logic
+   */
+  const handlePlayClick = async () => {
     const anime = featuredAnime[currentSlide];
-    if (anime?.series?.slug) {
-      navigate(`/series/${anime.series.slug}`);
+    if (!anime?.series?._id || !anime._id) return;
+
+    try {
+      // Get latest episode of this season (most likely to be watched)
+      const episodesResponse = await fetch(
+        `http://localhost:5000/api/seasons/${anime._id}/episodes?page=1&limit=1&sort=desc`
+      );
+      const episodesData = await episodesResponse.json();
+
+      if (episodesData.success && episodesData.data.episodes.length > 0) {
+        const latestEpisode = episodesData.data.episodes[0];
+        console.log('📺 Navigating to latest episode:', latestEpisode._id);
+        // Navigate without resume time - WatchPage will handle it
+        navigate(`/watch/${latestEpisode._id}`);
+      } else {
+        // No episodes available, go to series detail instead
+        console.warn('⚠️ No episodes available, redirecting to series page');
+        navigate(`/series/${anime.series.slug}?season=${anime.seasonNumber}`);
+      }
+    } catch (error) {
+      console.error('Error handling play click:', error);
+      // Fallback to series page
+      navigate(`/series/${anime.series.slug}?season=${anime.seasonNumber}`);
     }
   };
 
-  const handleTitleClick = () => {
+  /**
+   * Handle "Chi Tiết" button click
+   * Navigate to series detail with pre-selected season
+   */
+  const handleDetailClick = () => {
     const anime = featuredAnime[currentSlide];
-    if (anime?.series?.slug) {
-      navigate(`/series/${anime.series.slug}`);
+    if (anime?.series?.slug && anime.seasonNumber) {
+      navigate(`/series/${anime.series.slug}?season=${anime.seasonNumber}`);
     }
+  };
+
+  /**
+   * Handle title click - same as detail button
+   */
+  const handleTitleClick = () => {
+    handleDetailClick();
   };
 
   // Loading state
@@ -197,6 +234,7 @@ const HeroSlider = () => {
 
             {/* Action Buttons */}
             <div className="flex items-center space-x-4">
+              {/* Xem Ngay Button - Navigate to watch page */}
               <button
                 onClick={handlePlayClick}
                 className="flex items-center space-x-3 px-8 py-4 bg-[#FFD700] hover:bg-[#FFC700] text-gray-900 font-bold rounded-lg transition-all transform hover:scale-105 shadow-xl hover:shadow-2xl"
@@ -211,8 +249,9 @@ const HeroSlider = () => {
                 <span>Xem Ngay</span>
               </button>
 
+              {/* Chi Tiết Button - Navigate to series detail */}
               <button
-                onClick={handleTitleClick}
+                onClick={handleDetailClick}
                 className="flex items-center space-x-2 px-6 py-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-lg transition-all shadow-lg hover:shadow-xl backdrop-blur-sm"
               >
                 <svg

@@ -47,11 +47,9 @@ const SeriesDetail = () => {
         setSeries(series);
         setSeasons(seasons);
         
-        // ⚠️ CHECK URL QUERY PARAMETER: ?season=X
         const requestedSeasonNumber = searchParams.get('season');
         
         if (requestedSeasonNumber && seasons.length > 0) {
-          // Tìm season theo seasonNumber từ URL
           const foundSeason = seasons.find(
             s => s.seasonNumber === parseInt(requestedSeasonNumber)
           );
@@ -60,12 +58,10 @@ const SeriesDetail = () => {
             console.log(`🎯 Auto-selecting season ${requestedSeasonNumber} from URL`);
             setSelectedSeason(foundSeason);
           } else {
-            // Không tìm thấy season, dùng default
             console.warn(`⚠️ Season ${requestedSeasonNumber} not found, using default`);
             setSelectedSeason(defaultSeason || seasons[0]);
           }
         } else {
-          // Không có query parameter, dùng default season
           if (defaultSeason) {
             setSelectedSeason(defaultSeason);
           } else if (seasons.length > 0) {
@@ -108,8 +104,6 @@ const SeriesDetail = () => {
   const handleSeasonChange = (season) => {
     setSelectedSeason(season);
     setCurrentBatch(1);
-    
-    // ✅ UPDATE URL khi chọn season khác
     navigate(`/series/${slug}?season=${season.seasonNumber}`, { replace: true });
   };
 
@@ -177,11 +171,9 @@ const SeriesDetail = () => {
         title={series?.title} 
       />
 
-      {/* 3-BOX LAYOUT - FIXED POSITIONING */}
       <div className="max-w-[1700px] mx-auto px-6 py-8">
         <div className="flex gap-4">
           
-          {/* BOX 1: Poster + Series Info (Left) - INCREASED SIZE */}
           <div className="w-[320px] flex-shrink-0">
             <SeriesInfo 
               series={series} 
@@ -189,16 +181,15 @@ const SeriesDetail = () => {
             />
           </div>
 
-          {/* RIGHT COLUMN: Season Info + Episodes - REDUCED WIDTH */}
           <div className="flex-1 max-w-[1200px] space-y-4">
             
-            {/* BOX 2: Season Info */}
-            <SeasonInfoBox selectedSeason={selectedSeason} />
+            <SeasonInfoBox 
+              selectedSeason={selectedSeason} 
+              series={series}
+            />
 
-            {/* BOX 3: Episode Grid */}
             <div id="episodes-section" className="bg-white rounded-lg p-6 shadow-sm border-2 border-blue-300">
               
-              {/* Header: Season Selector (Left) + Batch Nav (Right) */}
               <div className="flex items-center justify-between mb-4">
                 
                 <div className="w-56">
@@ -221,13 +212,11 @@ const SeriesDetail = () => {
                 )}
               </div>
 
-              {/* Episode Grid */}
               <EpisodeGrid 
                 episodes={episodes} 
                 loading={episodesLoading}
               />
 
-              {/* Bottom Batch Navigation */}
               {pagination && pagination.totalBatches > 1 && episodes.length > 0 && (
                 <div className="mt-6 flex justify-center">
                   <EpisodeBatchNav

@@ -7,6 +7,9 @@ import WatchPage from './pages/WatchPage'
 import HomePage from './pages/HomePage'
 import SeriesDetail from './pages/SeriesDetail/SeriesDetail'
 import AdvancedSearch from './pages/AdvancedSearch/AdvancedSearch'
+import ProfilePage from './pages/ProfilePageNew'
+import PremiumPage from './pages/PremiumPage'
+import useAuthStore from './stores/authStore'
 
 function App() {
   const [showLogin, setShowLogin] = useState(false)
@@ -14,13 +17,26 @@ function App() {
   const [currentPage, setCurrentPage] = useState('dashboard')
   const [loading, setLoading] = useState(true)
 
+  // Hydrate user auth from localStorage on app mount
+  const authStore = useAuthStore();
+
   useEffect(() => {
+    // Admin auth check (existing)
     const token = localStorage.getItem('admin-token')
     const adminUser = localStorage.getItem('admin-user')
     
     if (token && adminUser) {
       setIsAuthenticated(true)
     }
+
+    // User auth hydration happens automatically via Zustand persist
+    // But we can add a check to validate tokens here if needed
+    const userAccessToken = localStorage.getItem('user-access-token');
+    if (userAccessToken && !authStore.isAuthenticated) {
+      // Token exists but store not hydrated yet - zustand will handle it
+      console.log('User session detected, restoring...');
+    }
+    
     setLoading(false)
   }, [])
 
@@ -412,6 +428,12 @@ function App() {
         
         {/* Watch page - Public route */}
         <Route path="/watch/:episodeId" element={<WatchPage />} />
+        
+        {/* User Profile page - Protected route */}
+        <Route path="/profile" element={<ProfilePage />} />
+        
+        {/* Premium page - Public route */}
+        <Route path="/premium" element={<PremiumPage />} />
         
         {/* Admin routes */}
         <Route path="/admin/*" element={<AdminPages />} />
