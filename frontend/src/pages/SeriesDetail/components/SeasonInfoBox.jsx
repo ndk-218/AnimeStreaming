@@ -78,7 +78,7 @@ const SeasonInfoBox = ({ selectedSeason, series }) => {
         <div>
           <p className="text-xs text-gray-500 mb-1">Tình trạng</p>
           <p className="text-sm font-medium text-gray-900">
-            {selectedSeason.episodeCount || 0} / {selectedSeason.episodeCount || '?'} tập
+            {selectedSeason.episodeCount || 0} tập
           </p>
         </div>
 
@@ -103,13 +103,13 @@ const SeasonInfoBox = ({ selectedSeason, series }) => {
         </div>
       </div>
 
-      {/* Action Buttons - Aligned Left, 1/3 Width Each */}
+      {/* Action Buttons - Aligned Left, Auto Width */}
       <div className="flex items-center gap-3">
         {/* Watch Now Button */}
         <button
           onClick={handleWatchClick}
           disabled={!hasEpisodes}
-          className={`w-1/3 px-4 py-2.5 rounded-lg font-medium transition-all flex items-center justify-center space-x-2 ${
+          className={`px-6 py-2.5 rounded-lg font-medium transition-all flex items-center justify-center space-x-2 ${
             hasEpisodes
               ? 'bg-gradient-to-r from-[#FF69B4] to-[#FF1493] text-white hover:shadow-lg transform hover:-translate-y-0.5'
               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -122,7 +122,7 @@ const SeasonInfoBox = ({ selectedSeason, series }) => {
         </button>
 
         {/* Favorite Button */}
-        <div className="w-1/3">
+        <div>
           <FavoriteButton seriesId={series?._id} />
         </div>
       </div>

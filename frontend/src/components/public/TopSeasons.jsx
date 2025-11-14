@@ -41,7 +41,7 @@ const TopSeasons = () => {
 
   const handleSeasonClick = (season) => {
     if (season.seriesId?.slug) {
-      navigate(`/anime/${season.seriesId.slug}`);
+      navigate(`/series/${season.seriesId.slug}?season=${season._id}`);
     }
   };
 
@@ -98,7 +98,7 @@ const TopSeasons = () => {
       </div>
 
       {/* Seasons List */}
-      <div className="space-y-2 flex-1 overflow-y-auto">
+      <div className="space-y-3 flex-1 overflow-y-auto">
         {seasons.map((season, index) => (
           <button
             key={season._id}
@@ -142,11 +142,6 @@ const TopSeasons = () => {
           </button>
         ))}
       </div>
-
-      {/* Footer */}
-      <button className="w-full mt-4 text-sm text-gray-400 hover:text-white transition-colors">
-        Xem thêm
-      </button>
     </div>
   );
 };

@@ -53,10 +53,24 @@ const ProfileAccount = () => {
     try {
       setIsLoading(true);
       const result = await profileService.updateProfile(displayName, gender);
-      updateUser(result.data);
+      
+      // Update authStore with new data
+      if (result.success && result.data) {
+        console.log('📝 Updating user in authStore:', result.data);
+        
+        // Make sure to update with the exact data from backend
+        updateUser({
+          displayName: result.data.displayName,
+          gender: result.data.gender
+        });
+        
+        console.log('✅ AuthStore updated successfully');
+      }
+      
       setSuccess('Cập nhật thông tin thành công!');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
+      console.error('❌ Update profile error:', err);
       setError(err.error || 'Cập nhật thất bại');
     } finally {
       setIsLoading(false);
@@ -142,7 +156,7 @@ const ProfileAccount = () => {
 
     try {
       setIsLoading(true);
-      await authService.changePassword(currentPassword, newPassword);
+      await authService.changePassword(currentPassword, newPassword, confirmPassword);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');

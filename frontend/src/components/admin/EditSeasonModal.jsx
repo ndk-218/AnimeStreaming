@@ -73,7 +73,7 @@ function EditSeasonModal({ season, isOpen, onClose, onSuccess }) {
         genres: formData.genres.filter(g => g.trim())
       }
 
-      const response = await api.put(`/seasons/admin/${season._id}`, updateData)
+      const response = await api.put(`/admin/seasons/${season._id}`, updateData)
 
       if (response.data.success) {
         // Upload poster if selected

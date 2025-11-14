@@ -72,7 +72,7 @@ function EditSeriesModal({ series, isOpen, onClose, onSuccess }) {
         status: formData.status
       }
 
-      const response = await api.put(`/series/${series._id}`, updateData)
+      const response = await api.put(`/admin/series/${series._id}`, updateData)
 
       if (response.data.success) {
         // Upload banner if selected

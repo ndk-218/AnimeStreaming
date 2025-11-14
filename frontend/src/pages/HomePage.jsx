@@ -38,7 +38,7 @@ const HomePage = () => {
               </div>
 
               {/* Trending Episodes Box */}
-              <div className="bg-white rounded-lg p-6 shadow-sm border-2 border-red-300">
+              <div className="bg-white rounded-lg px-6 py-8 shadow-sm border-2 border-red-300">
                 <div className="mb-6 flex items-center gap-3">
                   <h2 className="text-2xl font-bold text-gray-900">Anime Thịnh Hành</h2>
                   <span className="px-3 py-1 bg-gradient-to-r from-red-500 to-orange-500 text-white text-sm font-bold rounded-full animate-pulse">

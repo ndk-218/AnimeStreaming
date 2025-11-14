@@ -30,19 +30,80 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Response interceptor for error handling
+// Response interceptor for error handling + token refresh
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Handle 401 errors
     if (error.response?.status === 401) {
-      // Only redirect if it's an admin route
-      if (error.config?.url?.includes('/admin')) {
+      
+      // Admin route - logout admin
+      if (originalRequest.url?.includes('/admin')) {
         localStorage.removeItem('admin-token')
         window.location.href = '/admin/login'
+        return Promise.reject(error);
       }
-      // For user routes, just remove token but don't redirect
-      // Let the component handle the 401 error
+      
+      // User route - try refresh token (only once)
+      if (!originalRequest._retry) {
+        originalRequest._retry = true;
+
+        try {
+          const refreshToken = localStorage.getItem('user-refresh-token');
+          
+          if (refreshToken) {
+            console.log('🔄 Attempting to refresh access token...');
+            
+            // Call refresh token endpoint
+            const response = await axios.post(
+              'http://localhost:5000/api/users/auth/refresh-token',
+              { refreshToken }
+            );
+
+            if (response.data.success) {
+              const { accessToken } = response.data.data;
+              
+              // Save new access token
+              localStorage.setItem('user-access-token', accessToken);
+              console.log('✅ Access token refreshed successfully');
+              
+              // Update auth store if needed
+              const authStorage = localStorage.getItem('auth-storage');
+              if (authStorage) {
+                try {
+                  const authData = JSON.parse(authStorage);
+                  authData.state.accessToken = accessToken;
+                  localStorage.setItem('auth-storage', JSON.stringify(authData));
+                } catch (e) {
+                  console.error('Failed to update auth storage:', e);
+                }
+              }
+              
+              // Retry original request with new token
+              originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+              return api(originalRequest);
+            }
+          }
+        } catch (refreshError) {
+          console.error('❌ Token refresh failed:', refreshError);
+          
+          // Refresh failed - logout user
+          localStorage.removeItem('user-access-token');
+          localStorage.removeItem('user-refresh-token');
+          localStorage.removeItem('auth-storage');
+          
+          // Don't redirect, just let component handle it
+          // User can continue as anonymous
+          return Promise.reject(error);
+        }
+      }
+      
+      // If retry already attempted or no refresh token
+      return Promise.reject(error);
     }
+    
     return Promise.reject(error)
   }
 )

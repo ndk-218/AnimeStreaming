@@ -46,32 +46,12 @@ const EpisodeGrid = ({ episodes, loading }) => {
         <button
           key={episode._id}
           onClick={() => handleEpisodeClick(episode._id)}
-          className="group relative w-[120px] h-[50px] bg-gradient-to-br from-blue-500 to-blue-600 rounded hover:shadow-lg transition-all transform hover:-translate-y-0.5 flex-shrink-0"
+          className="w-[120px] h-[50px] bg-gradient-to-br from-blue-500 to-blue-600 hover:from-[#FF69B4] hover:to-[#FF1493] rounded transition-all duration-300 transform hover:scale-110 hover:shadow-xl flex items-center justify-center flex-shrink-0"
         >
           {/* Episode Number */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-white text-base font-bold group-hover:scale-110 transition-transform">
-              Tập {episode.episodeNumber}
-            </span>
-          </div>
-
-          {/* Hover Overlay with Play Icon */}
-          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center">
-            <svg 
-              className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-              fill="currentColor" 
-              viewBox="0 0 20 20"
-            >
-              <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-            </svg>
-          </div>
-
-          {/* Episode Title on Hover (Bottom) */}
-          {episode.title && (
-            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-90 text-white text-[10px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity truncate">
-              {episode.title}
-            </div>
-          )}
+          <span className="text-white text-base font-bold">
+            Tập {episode.episodeNumber}
+          </span>
         </button>
       ))}
     </div>

@@ -147,99 +147,20 @@ const Header = () => {
   return (
     <>
       <header className="sticky top-0 z-50 bg-gradient-to-r from-[#34D0F4] to-[#4DD9FF] shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1700px] mx-auto px-6">
           <div className="flex items-center justify-between h-16">
             
-            {/* Logo */}
-            <Link to="/" className="flex items-center space-x-3">
-              <div className="text-3xl font-bold">
-                <span style={{ color: '#FFD700' }}>G</span>
-                <span style={{ color: '#FFFFFF' }}>old</span>
-              </div>
-              <span className="text-sm text-white/90 hidden md:block">
-                Classic Anime Treasures
-              </span>
-            </Link>
-
-            {/* Navigation Menu */}
-            <nav className="hidden md:flex items-center space-x-8">
-              <Link
-                to="/search?seasonType=tv"
-                className="text-white/95 hover:text-[#FFD700] font-medium transition-colors"
-              >
-                Phim Bộ
+            {/* Left Side: Logo + Search Bar + Navigation Buttons */}
+            <div className="flex items-center space-x-6">
+              {/* Logo */}
+              <Link to="/" className="flex items-center pl-6">
+                <div className="text-3xl font-bold">
+                  <span style={{ color: '#FFD700' }}>G</span>
+                  <span style={{ color: '#FFFFFF' }}>old</span>
+                  <span style={{ color: '#FFD700' }}>en</span>
+                </div>
               </Link>
 
-              <Link
-                to="/search?seasonType=movie"
-                className="text-white/95 hover:text-[#FFD700] font-medium transition-colors"
-              >
-                Phim Lẻ
-              </Link>
-
-              <Link
-                to="/search?seasonType=ova"
-                className="text-white/95 hover:text-[#FFD700] font-medium transition-colors"
-              >
-                OVA
-              </Link>
-
-              {/* Thể Loại Dropdown */}
-              <div ref={genreRef} className="relative">
-                <button 
-                  onClick={() => setShowGenreDropdown(!showGenreDropdown)}
-                  className="text-white/95 hover:text-[#FFD700] font-medium transition-colors flex items-center"
-                >
-                  Thể Loại
-                  <svg
-                    className={`ml-1 w-4 h-4 transition-transform ${showGenreDropdown ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
-
-                {showGenreDropdown && (
-                  <div className="absolute top-full left-0 mt-2 w-[600px] bg-white rounded-lg shadow-xl border border-gray-200 p-4">
-                    {genres.length > 0 ? (
-                      <div className="grid grid-cols-4 gap-2">
-                        {genres.map((genre) => (
-                          <Link
-                            key={genre._id}
-                            to={`/search?genre=${encodeURIComponent(genre.name)}`}
-                            onClick={() => setShowGenreDropdown(false)}
-                            className="px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-[#34D0F4] rounded transition-colors text-center"
-                          >
-                            {genre.name}
-                          </Link>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="py-4 text-gray-500 text-sm text-center">
-                        Đang tải thể loại...
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <Link
-                to="/search"
-                className="text-white/95 hover:text-[#FFD700] font-medium transition-colors"
-              >
-                Tìm Kiếm Nâng Cao
-              </Link>
-            </nav>
-
-            {/* Search Bar + User Menu */}
-            <div className="flex items-center space-x-4">
               {/* Search Bar */}
               <div ref={searchRef} className="relative">
                 <form onSubmit={handleSearchSubmit} className="relative">
@@ -248,7 +169,7 @@ const Header = () => {
                     placeholder="Tìm kiếm anime..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-64 px-4 py-2 pr-10 border border-white/30 bg-white/10 text-white placeholder-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:bg-white/20 backdrop-blur-sm"
+                    className="w-96 px-4 py-2 pr-10 border border-white/30 bg-white/10 text-white placeholder-white/70 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:bg-white/20 backdrop-blur-sm"
                   />
                   <button
                     type="submit"
@@ -356,7 +277,79 @@ const Header = () => {
                 )}
               </div>
 
-              {/* User Section */}
+              {/* Navigation Menu - Moved to Left Block */}
+              <nav className="flex items-center space-x-6">
+                <Link
+                  to="/search?seasonType=tv"
+                  className="text-white/95 hover:text-[#FFD700] font-medium transition-colors"
+                >
+                  Phim Bộ
+                </Link>
+
+                <Link
+                  to="/search?seasonType=movie"
+                  className="text-white/95 hover:text-[#FFD700] font-medium transition-colors"
+                >
+                  Phim Lẻ
+                </Link>
+
+                {/* Thể Loại Dropdown */}
+                <div ref={genreRef} className="relative">
+                  <button 
+                    onClick={() => setShowGenreDropdown(!showGenreDropdown)}
+                    className="text-white/95 hover:text-[#FFD700] font-medium transition-colors flex items-center"
+                  >
+                    Thể Loại
+                    <svg
+                      className={`ml-1 w-4 h-4 transition-transform ${showGenreDropdown ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </button>
+
+                  {showGenreDropdown && (
+                    <div className="absolute top-full left-0 mt-2 w-[600px] bg-white rounded-lg shadow-xl border border-gray-200 p-4">
+                      {genres.length > 0 ? (
+                        <div className="grid grid-cols-4 gap-2">
+                          {genres.map((genre) => (
+                            <Link
+                              key={genre._id}
+                              to={`/search?genre=${encodeURIComponent(genre.name)}`}
+                              onClick={() => setShowGenreDropdown(false)}
+                              className="px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-[#34D0F4] rounded transition-colors text-center"
+                            >
+                              {genre.name}
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="py-4 text-gray-500 text-sm text-center">
+                          Đang tải thể loại...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <Link
+                  to="/search"
+                  className="text-white/95 hover:text-[#FFD700] font-medium transition-colors"
+                >
+                  Tìm Kiếm Nâng Cao
+                </Link>
+              </nav>
+            </div>
+
+            {/* Right Side: User Menu */}
+            <div className="flex items-center space-x-4">
               {isAuthenticated && user ? (
                 <div className="flex items-center space-x-3">
                   {/* Notification Bell */}

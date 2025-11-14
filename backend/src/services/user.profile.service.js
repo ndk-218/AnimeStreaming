@@ -42,6 +42,12 @@ const updateProfile = async (userId, updates) => {
       throw new Error('User not found');
     }
 
+    console.log('🔍 Before update:', { 
+      email: user.email, 
+      gender: user.gender,
+      updates 
+    });
+
     // Allowed fields to update
     const allowedFields = ['displayName', 'gender'];
     
@@ -54,11 +60,26 @@ const updateProfile = async (userId, updates) => {
 
     await user.save();
 
-    console.log(`✅ Profile updated: ${user.email}`);
+    console.log('🔍 After save:', { 
+      email: user.email, 
+      gender: user.gender 
+    });
+
+    // Return user object with all fields (excluding sensitive data)
+    const updatedUser = await User.findById(userId).select('-password -refreshToken');
+
+    console.log('🔍 After re-fetch:', { 
+      email: updatedUser.email, 
+      gender: updatedUser.gender,
+      hasGender: updatedUser.hasOwnProperty('gender'),
+      genderValue: updatedUser.gender
+    });
+
+    console.log('📦 Full user object keys:', Object.keys(updatedUser.toObject()));
 
     return {
       success: true,
-      data: user,
+      data: updatedUser,
       message: 'Profile updated successfully'
     };
 

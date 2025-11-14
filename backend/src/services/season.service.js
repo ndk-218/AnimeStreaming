@@ -300,8 +300,8 @@ class SeasonService {
   static async updateEpisodeCount(seasonId) {
     try {
       const episodeCount = await Episode.countDocuments({ 
-        seasonId: seasonId,
-        processingStatus: 'completed'
+        seasonId: seasonId
+        // Count ALL episodes regardless of processing status
       });
 
       const season = await Season.findByIdAndUpdate(

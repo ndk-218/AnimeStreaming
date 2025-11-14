@@ -7,43 +7,8 @@ const GenreTrendingRow = ({ genreName, seasons }) => {
 
   console.log('GenreTrendingRow - Genre:', genreName, 'Seasons:', seasons?.length); // Debug
 
-  const scroll = (direction) => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const cardWidth = 192;
-    const gap = 16;
-    const scrollAmount = cardWidth + gap;
-
-    if (direction === 'left') {
-      if (container.scrollLeft <= 10) {
-        const maxScroll = container.scrollWidth - container.clientWidth;
-        container.scrollLeft = maxScroll;
-      } else {
-        container.scrollBy({
-          left: -scrollAmount,
-          behavior: 'smooth'
-        });
-      }
-    } else {
-      const maxScroll = container.scrollWidth - container.clientWidth;
-      if (container.scrollLeft >= maxScroll - 10) {
-        container.scrollLeft = 0;
-      } else {
-        container.scrollBy({
-          left: scrollAmount,
-          behavior: 'smooth'
-        });
-      }
-    }
-  };
-
-  const handleSeasonClick = (seriesSlug, seasonSlug) => {
-    navigate(`/anime/${seriesSlug}/${seasonSlug}`);
-  };
-
-  const handleViewAll = () => {
-    navigate(`/genre/${genreName.toLowerCase()}`);
+  const handleSeasonClick = (seriesSlug, seasonId) => {
+    navigate(`/series/${seriesSlug}?season=${seasonId}`);
   };
 
   const cardWidth = 192;
@@ -56,40 +21,17 @@ const GenreTrendingRow = ({ genreName, seasons }) => {
     <div className="flex gap-6 items-center">
       {/* Left Side - Genre Info (Centered vertically and horizontally) */}
       <div className="w-[300px] flex-shrink-0 flex flex-col items-center justify-center text-center" style={{ minHeight: `${cardHeight + 60}px` }}>
-        <h3 className="text-3xl font-bold text-gray-900 mb-3 leading-tight">
-          {genreName || 'Unknown Genre'}
-        </h3>
         <button
-          onClick={handleViewAll}
-          className="text-sm text-gray-600 hover:text-[#34D0F4] transition-colors flex items-center group"
+          onClick={() => navigate(`/search?genre=${encodeURIComponent(genreName)}`)}
+          className="text-3xl font-bold text-gray-900 hover:text-[#34D0F4] transition-colors mb-3 leading-tight cursor-pointer"
         >
-          Xem tất cả
-          <svg 
-            className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          {genreName || 'Unknown Genre'}
         </button>
       </div>
 
-      {/* Right Side - Seasons Slider (Exact alignment with Episodes lists) */}
+      {/* Right Side - Seasons Slider (No navigation arrows) */}
       <div className="flex-1">
-        <div className="relative flex items-center justify-center gap-3">
-          {/* Left Arrow */}
-          <button
-            onClick={() => scroll('left')}
-            className="flex-shrink-0 w-10 h-10 bg-white hover:bg-gray-100 text-gray-700 rounded-full flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-lg border border-gray-200 z-10"
-            style={{ alignSelf: 'flex-start', marginTop: `${cardHeight / 2 - 20}px` }}
-            aria-label="Scroll left"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-
+        <div className="relative flex items-center justify-center">
           {/* Scroll Container - Match exact width with Episodes lists */}
           <div 
             className="overflow-hidden"
@@ -108,7 +50,7 @@ const GenreTrendingRow = ({ genreName, seasons }) => {
                 seasons.map((season, index) => (
                   <div
                     key={season._id}
-                    onClick={() => handleSeasonClick(season.seriesId?.slug, season.slug)}
+                    onClick={() => handleSeasonClick(season.seriesId?.slug, season._id)}
                     className="flex-shrink-0 w-48 group cursor-pointer"
                     style={{ 
                       scrollSnapAlign: 'start',
@@ -141,13 +83,8 @@ const GenreTrendingRow = ({ genreName, seasons }) => {
                         </div>
                       )}
 
-                      {/* Play Overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out flex items-center justify-center z-10">
-                        <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center transform scale-75 group-hover:scale-100 transition-transform duration-500 ease-out shadow-2xl">
-                          <svg className="w-7 h-7 text-gray-900 ml-1" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        </div>
+                      {/* Play Overlay - Removed play button, only dark overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out z-10">
                       </div>
                     </div>
 
@@ -178,18 +115,6 @@ const GenreTrendingRow = ({ genreName, seasons }) => {
               )}
             </div>
           </div>
-
-          {/* Right Arrow */}
-          <button
-            onClick={() => scroll('right')}
-            className="flex-shrink-0 w-10 h-10 bg-white hover:bg-gray-100 text-gray-700 rounded-full flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-lg border border-gray-200 z-10"
-            style={{ alignSelf: 'flex-start', marginTop: `${cardHeight / 2 - 20}px` }}
-            aria-label="Scroll right"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
 
           <style jsx>{`
             .scrollbar-hide::-webkit-scrollbar {

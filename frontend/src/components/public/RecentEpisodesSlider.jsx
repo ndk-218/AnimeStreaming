@@ -83,7 +83,7 @@ const RecentEpisodesSlider = () => {
 
   const handleSeriesClick = (e, seriesSlug) => {
     e.stopPropagation();
-    navigate(`/anime/${seriesSlug}`);
+    navigate(`/series/${seriesSlug}`);
   };
 
   if (loading) {
@@ -164,13 +164,8 @@ const RecentEpisodesSlider = () => {
                   Tập {episode.episodeNumber}
                 </div>
 
-                {/* Play Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out flex items-center justify-center z-10">
-                  <div className="w-16 h-16 rounded-full bg-[#FFD700] flex items-center justify-center transform scale-75 group-hover:scale-100 transition-transform duration-500 ease-out shadow-2xl">
-                    <svg className="w-7 h-7 text-gray-900 ml-1" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </div>
+                {/* Play Overlay - Removed play button, only dark overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out z-10">
                 </div>
               </div>
 
