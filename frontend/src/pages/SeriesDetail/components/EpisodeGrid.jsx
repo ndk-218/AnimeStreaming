@@ -1,8 +1,14 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import PropTypes from 'prop-types';
 
 const EpisodeGrid = ({ episodes, loading }) => {
   const navigate = useNavigate();
+  const { episodeId: currentEpisodeId } = useParams(); // Get current episode ID from URL
+  const location = useLocation();
+  
+  // Only highlight if we're on the watch page (URL contains /watch/)
+  const isWatchPage = location.pathname.includes('/watch/');
 
   const handleEpisodeClick = (episodeId) => {
     navigate(`/watch/${episodeId}`);
@@ -42,20 +48,38 @@ const EpisodeGrid = ({ episodes, loading }) => {
 
   return (
     <div className="flex flex-wrap gap-2">
-      {episodes.map((episode) => (
-        <button
-          key={episode._id}
-          onClick={() => handleEpisodeClick(episode._id)}
-          className="w-[120px] h-[50px] bg-gradient-to-br from-blue-500 to-blue-600 hover:from-[#FF69B4] hover:to-[#FF1493] rounded transition-all duration-300 transform hover:scale-110 hover:shadow-xl flex items-center justify-center flex-shrink-0"
-        >
-          {/* Episode Number */}
-          <span className="text-white text-base font-bold">
-            Tập {episode.episodeNumber}
-          </span>
-        </button>
-      ))}
+      {episodes.map((episode) => {
+        // Only check for current episode if we're on watch page
+        const isCurrentEpisode = isWatchPage && (episode._id === currentEpisodeId || episode.id === currentEpisodeId);
+        
+        return (
+          <button
+            key={episode._id}
+            onClick={() => handleEpisodeClick(episode._id)}
+            className={`
+              w-[120px] h-[50px] rounded transition-all duration-300 transform flex items-center justify-center flex-shrink-0
+              ${isCurrentEpisode 
+                ? 'bg-white border-2 border-[#34D0F4] shadow-lg scale-105' // Active: white bg, cyan border
+                : 'bg-gradient-to-br from-blue-500 to-blue-600 hover:from-[#FF69B4] hover:to-[#FF1493] hover:scale-110 hover:shadow-xl' // Normal: blue gradient
+              }
+            `}
+          >
+            {/* Episode Number */}
+            <span className={`text-base font-bold ${
+              isCurrentEpisode ? 'text-[#34D0F4]' : 'text-white'
+            }`}>
+              Tập {episode.episodeNumber}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
+};
+
+EpisodeGrid.propTypes = {
+  episodes: PropTypes.array.isRequired,
+  loading: PropTypes.bool
 };
 
 export default EpisodeGrid;

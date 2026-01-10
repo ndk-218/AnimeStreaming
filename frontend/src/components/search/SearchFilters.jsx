@@ -32,21 +32,35 @@ const SearchFilters = ({ onSearch, onClose, initialFilters = null }) => {
         setSelectedSeasonType(initialFilters.seasonTypes[0]);
       }
       
-      // Apply genres
+      // Apply genres (both include and exclude)
+      const newGenreFilters = {};
       if (initialFilters.genres && initialFilters.genres.length > 0) {
-        const newGenreFilters = {};
         initialFilters.genres.forEach(genre => {
           newGenreFilters[genre] = 'include';
         });
+      }
+      if (initialFilters.excludeGenres && initialFilters.excludeGenres.length > 0) {
+        initialFilters.excludeGenres.forEach(genre => {
+          newGenreFilters[genre] = 'exclude';
+        });
+      }
+      if (Object.keys(newGenreFilters).length > 0) {
         setGenreFilters(newGenreFilters);
       }
       
-      // Apply studios
+      // Apply studios (both include and exclude)
+      const newStudioFilters = {};
       if (initialFilters.studios && initialFilters.studios.length > 0) {
-        const newStudioFilters = {};
         initialFilters.studios.forEach(studio => {
           newStudioFilters[studio] = 'include';
         });
+      }
+      if (initialFilters.excludeStudios && initialFilters.excludeStudios.length > 0) {
+        initialFilters.excludeStudios.forEach(studio => {
+          newStudioFilters[studio] = 'exclude';
+        });
+      }
+      if (Object.keys(newStudioFilters).length > 0) {
         setStudioFilters(newStudioFilters);
       }
       
@@ -56,6 +70,9 @@ const SearchFilters = ({ onSearch, onClose, initialFilters = null }) => {
       }
       if (initialFilters.yearEnd) {
         setYearEnd(initialFilters.yearEnd);
+      }
+      if (initialFilters.excludeYears && initialFilters.excludeYears.length > 0) {
+        setExcludedYears(initialFilters.excludeYears);
       }
     }
   }, [initialFilters]);
@@ -164,7 +181,9 @@ const SearchFilters = ({ onSearch, onClose, initialFilters = null }) => {
     const filters = {
       seasonTypes: [],
       genres: [],
+      excludeGenres: [],      // NEW: Exclude genres
       studios: [],
+      excludeStudios: [],     // NEW: Exclude studios
       yearStart: null,
       yearEnd: null,
       excludeYears: []
@@ -175,17 +194,21 @@ const SearchFilters = ({ onSearch, onClose, initialFilters = null }) => {
       filters.seasonTypes = [selectedSeasonType];
     }
 
-    // Genres - chỉ lấy 'include' (AND logic)
+    // Genres - Phân biệt include và exclude
     Object.entries(genreFilters).forEach(([genre, state]) => {
       if (state === 'include') {
         filters.genres.push(genre);
+      } else if (state === 'exclude') {
+        filters.excludeGenres.push(genre);
       }
     });
 
-    // Studios - chỉ lấy 'include' (AND logic)
+    // Studios - Phân biệt include và exclude
     Object.entries(studioFilters).forEach(([studio, state]) => {
       if (state === 'include') {
         filters.studios.push(studio);
+      } else if (state === 'exclude') {
+        filters.excludeStudios.push(studio);
       }
     });
 
@@ -361,6 +384,7 @@ const SearchFilters = ({ onSearch, onClose, initialFilters = null }) => {
                 onChange={(e) => {
                   setYearStart(e.target.value);
                   setSelectedYear(null); // Clear quick select khi nhập range
+                  setExcludedYears([]); // Clear excluded years
                 }}
                 className="w-32 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                 min="1900"
@@ -374,11 +398,29 @@ const SearchFilters = ({ onSearch, onClose, initialFilters = null }) => {
                 onChange={(e) => {
                   setYearEnd(e.target.value);
                   setSelectedYear(null); // Clear quick select khi nhập range
+                  setExcludedYears([]); // Clear excluded years
                 }}
                 className="w-32 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                 min="1900"
                 max={currentYear}
               />
+              
+              {/* Single clear button for both inputs */}
+              {(yearStart || yearEnd) && (
+                <button
+                  onClick={() => {
+                    setYearStart('');
+                    setYearEnd('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  type="button"
+                  title="Xóa khoảng năm"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
 
             {/* Hiển thị excluded years */}

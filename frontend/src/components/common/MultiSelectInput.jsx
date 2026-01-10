@@ -98,31 +98,8 @@ function MultiSelectInput({
     <div className={`relative ${className}`} ref={dropdownRef}>
       {label && (
         <label className="block text-gray-700 text-sm font-medium mb-2">
-          {label} {required && <span className="text-red-500">*</span>}
+          {label}
         </label>
-      )}
-      
-      {/* Selected items */}
-      {value.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2">
-          {value.map((item, index) => (
-            <div
-              key={index}
-              className="flex items-center bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm"
-            >
-              <span>{item}</span>
-              <button
-                type="button"
-                onClick={() => handleRemoveItem(item)}
-                className="ml-2 hover:bg-indigo-200 rounded-full p-1 transition-colors"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ))}
-        </div>
       )}
       
       <div className="relative">
@@ -144,13 +121,6 @@ function MultiSelectInput({
           </div>
         )}
       </div>
-
-      {/* Selection count */}
-      {value.length > 0 && (
-        <p className="text-xs text-gray-500 mt-1">
-          {value.length} of {maxSelections} selected
-        </p>
-      )}
 
       {/* Dropdown */}
       {isOpen && suggestions.length > 0 && (
@@ -182,6 +152,36 @@ function MultiSelectInput({
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-4 text-center text-gray-500">
           No results found for "{searchTerm}"
         </div>
+      )}
+
+      {/* Selected items - MOVED TO BOTTOM */}
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {value.map((item, index) => (
+            <div
+              key={index}
+              className="flex items-center bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm"
+            >
+              <span>{item}</span>
+              <button
+                type="button"
+                onClick={() => handleRemoveItem(item)}
+                className="ml-2 hover:bg-indigo-200 rounded-full p-1 transition-colors"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Selection count */}
+      {value.length > 0 && (
+        <p className="text-xs text-gray-500 mt-1">
+          {value.length} of {maxSelections} selected
+        </p>
       )}
     </div>
   )

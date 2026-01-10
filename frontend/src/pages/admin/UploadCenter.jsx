@@ -4,9 +4,13 @@ import EnhancedSeriesSelection from '../../components/admin/EnhancedSeriesSelect
 import EnhancedSeasonSelection from '../../components/admin/EnhancedSeasonSelection'
 import EpisodeUploadModal from '../../components/admin/EpisodeUploadModal'
 import ProcessingStatus from '../../components/admin/ProcessingStatus'
+import AdminNotificationBell from '../../components/admin/AdminNotificationBell'
+import AdminNotificationPanel from '../../components/admin/AdminNotificationPanel'
+import AdminHeader from '../../components/admin/AdminHeader'
 
 export default function UploadCenter() {
   const [currentStep, setCurrentStep] = useState(1)
+  const [showNotifications, setShowNotifications] = useState(false)
   const [uploadData, setUploadData] = useState({
     series: null,
     season: null,
@@ -49,7 +53,12 @@ export default function UploadCenter() {
   }
 
   return (
-    <div className="min-h-screen bg-light-50 p-6">
+    <div className="min-h-screen bg-light-50">
+      {/* Admin Header */}
+      <AdminHeader />
+      
+      {/* Main Content */}
+      <div className="p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
@@ -58,14 +67,23 @@ export default function UploadCenter() {
               <h1 className="text-3xl font-bold text-light-900 mb-2">Episode Upload Center</h1>
               <p className="text-light-600">Upload anime episodes with automatic processing and HLS conversion</p>
             </div>
-            <button
-              onClick={resetUpload}
-              className="bg-light-200 hover:bg-light-300 text-light-700 px-4 py-2 rounded-lg transition-colors"
-            >
-              Start Over
-            </button>
+            <div className="flex items-center gap-4">
+              <AdminNotificationBell onOpenPanel={() => setShowNotifications(true)} />
+              <button
+                onClick={resetUpload}
+                className="bg-light-200 hover:bg-light-300 text-light-700 px-4 py-2 rounded-lg transition-colors"
+              >
+                Start Over
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Notification Panel */}
+        <AdminNotificationPanel 
+          isOpen={showNotifications} 
+          onClose={() => setShowNotifications(false)} 
+        />
 
         {/* Progress Steps */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
@@ -182,6 +200,7 @@ export default function UploadCenter() {
             />
           )}
         </div>
+      </div>
       </div>
     </div>
   )

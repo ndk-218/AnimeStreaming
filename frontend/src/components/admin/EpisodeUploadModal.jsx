@@ -6,9 +6,7 @@ import { X } from 'lucide-react'
 function EpisodeUploadModal({ uploadData, setUploadData, onNext, onBack, setError, setSuccess }) {
   const [showModal, setShowModal] = useState(false)
   const [episodeData, setEpisodeData] = useState({
-    title: '',
     episodeNumber: 1,
-    description: '',
     videoFile: null,
     subtitleFiles: []
   })
@@ -25,8 +23,6 @@ function EpisodeUploadModal({ uploadData, setUploadData, onNext, onBack, setErro
     setSelectedEpisode(episodeSelection)
     setEpisodeData({
       episodeNumber: episodeSelection.episodeNumber,
-      title: episodeSelection.title,
-      description: episodeSelection.description || '',
       videoFile: null,
       subtitleFiles: []
     })
@@ -38,7 +34,7 @@ function EpisodeUploadModal({ uploadData, setUploadData, onNext, onBack, setErro
     if (uploading && !confirm('Upload in progress. Cancel?')) return
     setShowModal(false)
     setSelectedEpisode(null)
-    setEpisodeData({ title: '', episodeNumber: 1, description: '', videoFile: null, subtitleFiles: [] })
+    setEpisodeData({ episodeNumber: 1, videoFile: null, subtitleFiles: [] })
     setUploadProgress(0)
     setLocalError('')
   }
@@ -86,12 +82,10 @@ function EpisodeUploadModal({ uploadData, setUploadData, onNext, onBack, setErro
 
   const uploadEpisode = async () => {
     if (uploading) return
-    if (!episodeData.title.trim()) {
-      setLocalError('Title required')
-      return
-    }
-    if (!episodeData.videoFile) {
-      setLocalError('Video required')
+    
+    // Validation: Phải có ít nhất 1 trong 2: video hoặc subtitle
+    if (!episodeData.videoFile && episodeData.subtitleFiles.length === 0) {
+      setLocalError('Either video or subtitle file is required')
       return
     }
 
@@ -102,22 +96,31 @@ function EpisodeUploadModal({ uploadData, setUploadData, onNext, onBack, setErro
     try {
       const isReplacement = selectedEpisode?.isExisting && selectedEpisode?.episodeId
       const formData = new FormData()
-      formData.append('videoFile', episodeData.videoFile)
+      
+      // Thêm video file nếu có
+      if (episodeData.videoFile) {
+        formData.append('videoFile', episodeData.videoFile)
+      }
+      
+      // Thêm subtitle files nếu có
+      if (episodeData.subtitleFiles.length > 0) {
+        episodeData.subtitleFiles.forEach(file => formData.append('subtitleFiles', file))
+      }
       
       let response
 
       if (isReplacement) {
-        response = await api.put(`/episodes/admin/${selectedEpisode.episodeId}/video`, formData, {
+        // UPDATE existing episode
+        response = await api.put(`/episodes/admin/${selectedEpisode.episodeId}`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           onUploadProgress: (e) => setUploadProgress(Math.round((e.loaded * 100) / e.total))
         })
       } else {
+        // CREATE new episode
         formData.append('seriesId', uploadData.series._id)
         formData.append('seasonId', uploadData.season._id)
-        formData.append('title', episodeData.title.trim())
         formData.append('episodeNumber', episodeData.episodeNumber)
-        formData.append('description', episodeData.description.trim() || '')
-        episodeData.subtitleFiles.forEach(file => formData.append('subtitleFiles', file))
+        formData.append('title', `Episode ${episodeData.episodeNumber}`)
         
         response = await api.post('/episodes/admin', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -126,7 +129,12 @@ function EpisodeUploadModal({ uploadData, setUploadData, onNext, onBack, setErro
       }
 
       if (response.data.success) {
-        setSuccess(isReplacement ? 'Episode replaced!' : 'Episode uploaded!')
+        const successMsg = isReplacement ? 
+          (episodeData.videoFile && episodeData.subtitleFiles.length > 0 ? 'Episode video & subtitle updated!' :
+           episodeData.videoFile ? 'Episode video replaced!' : 'Episode subtitle updated!') :
+          'Episode uploaded!'
+        
+        setSuccess(successMsg)
         setUploadData(prev => ({ 
           ...prev, 
           episode: response.data.data || { _id: selectedEpisode.episodeId },
@@ -150,7 +158,7 @@ function EpisodeUploadModal({ uploadData, setUploadData, onNext, onBack, setErro
       return
     }
 
-    const confirmMessage = `Are you sure you want to delete Episode ${episodeData.episodeNumber}?\n\nTitle: ${episodeData.title}\n\nThis will permanently delete the video file and cannot be undone!`
+    const confirmMessage = `Are you sure you want to delete Episode ${episodeData.episodeNumber}?\n\nThis will permanently delete the video file and cannot be undone!`
     
     if (!window.confirm(confirmMessage)) {
       return
@@ -227,19 +235,7 @@ function EpisodeUploadModal({ uploadData, setUploadData, onNext, onBack, setErro
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-                <input type="text" value={episodeData.title} onChange={(e) => setEpisodeData(prev => ({ ...prev, title: e.target.value }))} 
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Episode title" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea value={episodeData.description} onChange={(e) => setEpisodeData(prev => ({ ...prev, description: e.target.value }))} rows={2}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Brief description" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Video File *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Video File {!selectedEpisode?.isExisting && '*'}</label>
                 {!episodeData.videoFile ? (
                   <button onClick={() => fileInputRef.current?.click()} className="w-full border-2 border-dashed rounded-lg p-4 hover:border-indigo-400 hover:bg-indigo-50">
                     <p className="text-gray-600">📹 Click to select video</p>
@@ -316,9 +312,13 @@ function EpisodeUploadModal({ uploadData, setUploadData, onNext, onBack, setErro
                 <button onClick={closeModal} disabled={uploading} className="px-4 py-2 border rounded-lg hover:bg-gray-100 disabled:opacity-50">
                   Cancel
                 </button>
-                <button onClick={uploadEpisode} disabled={uploading || !episodeData.title.trim() || !episodeData.videoFile}
+                <button onClick={uploadEpisode} disabled={uploading || (!episodeData.videoFile && episodeData.subtitleFiles.length === 0)}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-                  {uploading ? `Uploading ${uploadProgress}%` : selectedEpisode?.isExisting ? 'Replace Video' : 'Upload Video'}
+                  {uploading ? `Uploading ${uploadProgress}%` : 
+                   selectedEpisode?.isExisting ? 
+                     (episodeData.videoFile && episodeData.subtitleFiles.length > 0 ? 'Update Video & Subtitle' :
+                      episodeData.videoFile ? 'Replace Video' : 'Update Subtitle') :
+                   'Upload Episode'}
                 </button>
               </div>
             </div>

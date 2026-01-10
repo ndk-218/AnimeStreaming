@@ -13,6 +13,8 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
     releaseYear: new Date().getFullYear(),
     status: 'ongoing'
   })
+  const [bannerFile, setBannerFile] = useState(null)
+  const [bannerPreview, setBannerPreview] = useState(null)
   const [loading, setLoading] = useState(false)
   const [loadingSeries, setLoadingSeries] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -65,6 +67,39 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
     return () => clearTimeout(timeoutId)
   }, [searchTerm])
 
+  // Handle banner file selection
+  const handleBannerChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file')
+        return
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Banner image must be less than 5MB')
+        return
+      }
+
+      setBannerFile(file)
+      
+      // Create preview
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setBannerPreview(reader.result)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  // Remove banner
+  const removeBanner = () => {
+    setBannerFile(null)
+    setBannerPreview(null)
+  }
+
   // Create new series with enhanced validation
   const createSeries = async () => {
     // Validation
@@ -82,14 +117,31 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
     setError('')
     
     try {
-      const seriesData = {
-        ...newSeries,
-        title: newSeries.title.trim(),
-        originalTitle: newSeries.originalTitle.trim() || undefined,
-        description: newSeries.description.trim() || undefined
+      // Create FormData for multipart upload
+      const formData = new FormData()
+      formData.append('title', newSeries.title.trim())
+      formData.append('releaseYear', newSeries.releaseYear)
+      formData.append('status', newSeries.status)
+      
+      if (newSeries.originalTitle.trim()) {
+        formData.append('originalTitle', newSeries.originalTitle.trim())
+      }
+      
+      if (newSeries.description.trim()) {
+        formData.append('description', newSeries.description.trim())
       }
 
-      const response = await api.post('/admin/series', seriesData)
+      // Append banner file if exists
+      if (bannerFile) {
+        formData.append('imageFile', bannerFile)
+      }
+
+      const response = await api.post('/admin/series', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+      
       if (response.data.success) {
         setUploadData(response.data.data) // Pass series directly
         setSuccess(`Series "${response.data.data.title}" created successfully!`)
@@ -106,7 +158,7 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
     }
   }
 
-    // Handle edit series
+  // Handle edit series
   const handleEditSeries = (series) => {
     setSeriesIdToEdit(series)
     setEditModalOpen(true)
@@ -136,6 +188,7 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
     fetchRecentSeries() // Refresh list
     setTimeout(() => setSuccess(''), 3000)
   }
+
   // Reset form
   const resetForm = () => {
     setNewSeries({
@@ -145,6 +198,8 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
       releaseYear: new Date().getFullYear(),
       status: 'ongoing'
     })
+    setBannerFile(null)
+    setBannerPreview(null)
     setError('')
   }
 
@@ -152,7 +207,7 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-6">Select or Create Series</h2>
       
-      {/* Search Existing Series */}
+      {/* Search Existing Series - KEEPING AS IS */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-800">Browse Existing Series</h3>
@@ -193,10 +248,10 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
               return (
                 <div
                   key={series._id}
-                  className="group p-5 border border-gray-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 transition-all duration-200 hover:shadow-lg relative"
+                  className="group border border-gray-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 transition-all duration-200 hover:shadow-lg relative overflow-hidden"
                 >
                   {/* Action Buttons - Top Right */}
-                  <div className="absolute top-3 right-3 flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-3 right-3 flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
@@ -233,35 +288,55 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
                         onNext()
                       }, 1000)
                     }}
-                    className="cursor-pointer"
+                    className="cursor-pointer flex p-4"
                   >
-                    <div className="flex items-start justify-between mb-3 pr-20">
-                      <h4 className="font-semibold text-gray-900 group-hover:text-indigo-700 line-clamp-2 flex-1">
+                    {/* Banner - Left Side */}
+                    <div className="w-24 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+                      {series.bannerImage ? (
+                        <img
+                          src={`http://localhost:5000/${series.bannerImage}`}
+                          alt={series.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info - Right Side */}
+                    <div className="ml-4 flex-1 min-w-0">
+                      {/* Title */}
+                      <h4 className="font-semibold text-gray-900 group-hover:text-indigo-700 line-clamp-2 mb-2 pr-16">
                         {series.title}
                       </h4>
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ml-2 ${statusOption.color}`}>
-                        {statusOption.label}
-                      </span>
-                    </div>
-                    
-                    {series.originalTitle && (
-                      <p className="text-sm text-gray-600 mb-2 line-clamp-1">{series.originalTitle}</p>
-                    )}
-                    
-                    <div className="text-xs text-gray-500 mb-3">
-                      <span className="font-medium">{series.releaseYear}</span>
-                    </div>
-                    
-                    <div className="text-xs text-gray-400 border-t border-gray-100 pt-2">
-                      Last updated: {new Date(series.updatedAt).toLocaleDateString()}
-                    </div>
-                    
-                    <div className="mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="flex items-center text-xs text-indigo-600">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                        </svg>
-                        Select this series
+                      
+                      {/* Status and Release Year */}
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusOption.color}`}>
+                          {statusOption.label}
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          {series.releaseYear}
+                        </span>
+                      </div>
+                      
+                      {/* Last Updated */}
+                      <div className="text-xs text-gray-400">
+                        Last updated: {new Date(series.updatedAt).toLocaleDateString()}
+                      </div>
+                      
+                      {/* Hover Action */}
+                      <div className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center text-xs text-indigo-600">
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                          </svg>
+                          Select this series
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -324,7 +399,7 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-gray-700 text-sm font-medium mb-2">
-                      Series Title *
+                      Series Title <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -364,13 +439,64 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
                 />
               </div>
 
-              {/* Release Year and Status */}
-              <div>
-                <h4 className="text-md font-medium text-gray-900 mb-4">Release Information</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Banner + Release Year + Status - Same Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                {/* Banner Image - Left Half */}
+                <div>
+                  <label className="block text-gray-700 text-sm font-medium mb-2">
+                    Banner Image
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    {bannerPreview ? (
+                      <div className="relative">
+                        <img
+                          src={bannerPreview}
+                          alt="Banner preview"
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                        <button
+                          onClick={removeBanner}
+                          className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full transition-colors"
+                          title="Remove banner"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <svg className="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <div className="mt-2">
+                          <label
+                            htmlFor="banner-upload"
+                            className="cursor-pointer bg-white px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors inline-block"
+                          >
+                            Choose Banner
+                          </label>
+                          <input
+                            id="banner-upload"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleBannerChange}
+                            className="hidden"
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          PNG, JPG, WEBP up to 5MB
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Release Year + Status - Right Half */}
+                <div className="space-y-4">
                   <div>
                     <label className="block text-gray-700 text-sm font-medium mb-2">
-                      Release Year *
+                      Release Year <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
@@ -384,7 +510,7 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
                   
                   <div>
                     <label className="block text-gray-700 text-sm font-medium mb-2">
-                      Status *
+                      Status <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={newSeries.status}
@@ -403,8 +529,8 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
 
               {/* Action Buttons */}
               <div className="pt-6 border-t border-gray-200 flex items-center justify-between">
-                <div className="text-sm text-gray-500">
-                  * Required fields
+                <div className="text-sm text-red-500 font-medium">
+                  * Bắt buộc
                 </div>
                 <div className="flex items-center space-x-3">
                   <button
@@ -438,7 +564,8 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
           </div>
         )}
       </div>
-     {/* Edit Series Modal */}
+
+      {/* Edit Series Modal */}
       <EditSeriesModal
         series={seriesIdToEdit}
         isOpen={editModalOpen}

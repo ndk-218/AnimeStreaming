@@ -44,63 +44,81 @@ const SeasonInfoBox = ({ selectedSeason, series }) => {
         </p>
       )}
 
-      {/* Season Metadata - Compact Grid */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      {/* Season Metadata - Reordered Grid */}
+      <div className="space-y-3 mb-4">
         
-        {/* Genres */}
+        {/* Row 1: Status + Release Year */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Status */}
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Tình trạng</p>
+            <p className="text-sm font-medium text-gray-900">
+              {selectedSeason.episodeCount || 0} tập
+            </p>
+          </div>
+
+          {/* Release Year */}
+          {selectedSeason.releaseYear && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Năm phát hành</p>
+              <p className="text-sm font-medium text-gray-900">
+                {selectedSeason.releaseYear}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Row 2: Type + Studios */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Type */}
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Loại</p>
+            <button
+              onClick={() => navigate(`/search?seasonType=${selectedSeason.seasonType}`)}
+              className="px-3 py-1 bg-cyan-50 text-[#34D0F4] border border-[#34D0F4] text-sm font-medium rounded transition-all duration-300 hover:bg-pink-50 hover:text-[#FA7299] hover:border-[#FA7299] cursor-pointer"
+            >
+              {selectedSeason.seasonType === 'tv' ? 'TV Series' : 
+               selectedSeason.seasonType === 'movie' ? 'Movie' :
+               selectedSeason.seasonType === 'ova' ? 'OVA' : 'Special'}
+            </button>
+          </div>
+
+          {/* Studios */}
+          {selectedSeason.studios && selectedSeason.studios.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Studio</p>
+              <div className="flex flex-wrap gap-1">
+                {selectedSeason.studios.map((studio) => (
+                  <button
+                    key={studio._id}
+                    onClick={() => navigate(`/search?studio=${encodeURIComponent(studio.name)}`)}
+                    className="px-3 py-1 bg-cyan-50 text-[#34D0F4] border border-[#34D0F4] text-sm font-medium rounded transition-all duration-300 hover:bg-pink-50 hover:text-[#FA7299] hover:border-[#FA7299] cursor-pointer"
+                  >
+                    {studio.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Row 3: Genres (Full Width) */}
         {selectedSeason.genres && selectedSeason.genres.length > 0 && (
           <div>
             <p className="text-xs text-gray-500 mb-1">Thể loại</p>
             <div className="flex flex-wrap gap-1">
               {selectedSeason.genres.map((genre) => (
-                <span
+                <button
                   key={genre._id}
-                  className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded"
+                  onClick={() => navigate(`/search?genre=${encodeURIComponent(genre.name)}`)}
+                  className="px-3 py-1 bg-cyan-50 text-[#34D0F4] border border-[#34D0F4] text-sm font-medium rounded transition-all duration-300 hover:bg-pink-50 hover:text-[#FA7299] hover:border-[#FA7299] cursor-pointer"
                 >
                   {genre.name}
-                </span>
+                </button>
               ))}
             </div>
           </div>
         )}
-
-        {/* Studios */}
-        {selectedSeason.studios && selectedSeason.studios.length > 0 && (
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Studio</p>
-            <p className="text-sm font-medium text-gray-900">
-              {selectedSeason.studios.map(s => s.name).join(', ')}
-            </p>
-          </div>
-        )}
-
-        {/* Status */}
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Tình trạng</p>
-          <p className="text-sm font-medium text-gray-900">
-            {selectedSeason.episodeCount || 0} tập
-          </p>
-        </div>
-
-        {/* Release Year */}
-        {selectedSeason.releaseYear && (
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Năm phát hành</p>
-            <p className="text-sm font-medium text-gray-900">
-              {selectedSeason.releaseYear}
-            </p>
-          </div>
-        )}
-
-        {/* Type */}
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Loại</p>
-          <p className="text-sm font-medium text-gray-900 capitalize">
-            {selectedSeason.seasonType === 'tv' ? 'TV Series' : 
-             selectedSeason.seasonType === 'movie' ? 'Movie' :
-             selectedSeason.seasonType === 'ova' ? 'OVA' : 'Special'}
-          </p>
-        </div>
       </div>
 
       {/* Action Buttons - Aligned Left, Auto Width */}

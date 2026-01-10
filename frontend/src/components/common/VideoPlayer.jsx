@@ -12,8 +12,9 @@ import {
   Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, 
   Settings, Maximize, Check 
 } from 'lucide-react';
+import { memo } from 'react';
 
-const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTime = 0 }) => {
+const VideoPlayer = ({ hlsPath, qualities, subtitles = [], episodeId, autoPlay = true, initialTime = 0 }) => {
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
@@ -31,27 +32,111 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState(null);
+  const [isBuffering, setIsBuffering] = useState(true); // Add buffering state
 
   // Settings menu state
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsTab, setSettingsTab] = useState(null); // 'quality' | 'speed' | 'subtitle'
+  const [settingsTab, setSettingsTab] = useState(null); // 'quality' | 'speed' | 'subtitle' | 'subtitle-color' | etc.
   const [currentQuality, setCurrentQuality] = useState('auto');
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [subtitleEnabled, setSubtitleEnabled] = useState(false);
+  
+  // Subtitle customization settings (Load from localStorage)
+  const [subtitleSettings, setSubtitleSettings] = useState(() => {
+    // Try to load saved settings from localStorage
+    const saved = localStorage.getItem('subtitleSettings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse saved subtitle settings:', e);
+      }
+    }
+    
+    // Default settings if no saved data
+    return {
+      color: 'white',           // white, black, yellow, blue, pink
+      fontSize: '14pt',         // 12pt, 14pt, 16pt, 18pt, 20pt, 24pt, 32pt
+      textOpacity: '100%',      // 0%, 25%, 50%, 75%, 100%
+      fontFamily: 'Arial',      // Arial, Courier, Georgia, Impact, etc.
+      textEdge: 'shadow',       // none, shadow, raised, outline
+      bgColor: 'black',         // black, darkgray, lightgray, blue, pink, white
+      bgOpacity: '0%',          // 0%, 25%, 50%, 75%, 100%
+      position: '20px'          // 0px, 20px, 40px, 60px, 80px, 100px, 120px, 140px
+    };
+  });
 
   // Auth modal state
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Get authentication state from authStore
-  const { isAuthenticated, isPremium } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
+
+  // Debug log auth state
+  useEffect(() => {
+    console.log('🔑 VideoPlayer Auth State:', { isAuthenticated });
+  }, [isAuthenticated]);
 
   // Available playback speeds
   const playbackSpeeds = [0.25, 0.5, 1, 1.25, 1.5, 2];
 
+  // Subtitle customization options
+  const subtitleOptions = {
+    colors: [
+      { value: 'white', label: 'Trắng' },
+      { value: 'black', label: 'Đen' },
+      { value: 'yellow', label: 'Vàng' },
+      { value: 'blue', label: 'Xanh Dương' },
+      { value: 'pink', label: 'Hồng' }
+    ],
+    fontSizes: ['12pt', '14pt', '16pt', '18pt', '20pt', '24pt', '32pt'],
+    opacities: ['0%', '25%', '50%', '75%', '100%'],
+    fontFamilies: [
+      'Arial',
+      'Courier New',
+      'Georgia',
+      'Impact',
+      'Lucida Console',
+      'Tahoma',
+      'Times New Roman',
+      'Trebuchet MS',
+      'Verdana'
+    ],
+    textEdges: [
+      { value: 'none', label: 'Không' },
+      { value: 'shadow', label: 'Bóng đổ' },
+      { value: 'raised', label: 'Nổi' },
+      { value: 'outline', label: 'Viền mỏng' }
+    ],
+    bgColors: [
+      { value: 'black', label: 'Đen' },
+      { value: '#333', label: 'Xám Đậm' },
+      { value: '#999', label: 'Xám Nhạt' },
+      { value: 'blue', label: 'Xanh Dương' },
+      { value: 'pink', label: 'Hồng' },
+      { value: 'white', label: 'Trắng' }
+    ],
+    positions: ['0px', '20px', '40px', '60px', '80px', '100px', '120px', '140px']
+  };
+
+  // Helper: Convert SRT to VTT format
+  const convertSrtToVtt = (srtText) => {
+    // Add WEBVTT header
+    let vttText = 'WEBVTT\n\n';
+    
+    // Replace comma with dot in timestamps (SRT uses comma, VTT uses dot)
+    // Example: 00:00:01,260 -> 00:00:01.260
+    vttText += srtText.replace(/,(\d{3})/g, '.$1');
+    
+    console.log('✅ [VideoPlayer] SRT converted to VTT');
+    return vttText;
+  };
+
   // Get max allowed quality based on user tier
   const getMaxAllowedQuality = () => {
-    if (isPremium()) return '1080p';
-    if (isAuthenticated) return '720p';
-    return '480p';
+    // NEW LOGIC: Anonymous can watch up to 720p, Registered can watch all
+    if (isAuthenticated) return '1080p';
+    return '720p';
   };
 
   // Get quality label
@@ -65,10 +150,9 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
 
   // Check if user can access quality
   const canAccessQuality = (quality) => {
-    if (quality === 'auto') return true; // Auto is allowed but limited
-    if (quality === '480p') return true;
-    if (quality === '720p') return isAuthenticated;
-    if (quality === '1080p') return isPremium();
+    if (quality === 'auto') return true;
+    if (quality === '480p' || quality === '720p') return true; // Everyone can access 480p & 720p
+    if (quality === '1080p' || quality === 'Upscaled') return isAuthenticated; // Only registered users
     return false;
   };
 
@@ -108,10 +192,23 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
 
   // Effect: Setup HLS player with quality restrictions
   useEffect(() => {
+    console.log('🎥 [VideoPlayer] Starting HLS setup...');
+    const startTime = performance.now();
+    
     const video = videoRef.current;
-    if (!video || !hlsPath) return;
+    if (!video || !hlsPath) {
+      console.warn('⚠️ [VideoPlayer] Missing video ref or hlsPath');
+      return;
+    }
 
     const videoUrl = getAppropriateSource();
+    console.log('📋 [VideoPlayer] Video URL:', videoUrl);
+
+    // Timeout fallback for buffering state
+    const bufferingTimeout = setTimeout(() => {
+      console.warn('⚠️ [VideoPlayer] Buffering timeout - forcing stop');
+      setIsBuffering(false);
+    }, 10000); // 10 seconds timeout
 
     if (Hls.isSupported()) {
       const hls = new Hls({
@@ -121,11 +218,16 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
       });
 
       hlsRef.current = hls;
+      
+      console.log('🔄 [VideoPlayer] Loading HLS source...');
       hls.loadSource(videoUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log('✅ HLS manifest loaded');
+        const loadTime = performance.now() - startTime;
+        console.log(`✅ [VideoPlayer] HLS manifest loaded in ${loadTime.toFixed(2)}ms`);
+        clearTimeout(bufferingTimeout); // Clear timeout
+        setIsBuffering(false); // Stop buffering
         if (initialTime > 0) {
           video.currentTime = initialTime;
         }
@@ -135,23 +237,33 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error('❌ HLS error:', data);
+        console.error('❌ [VideoPlayer] HLS error:', data);
+        clearTimeout(bufferingTimeout);
         if (data.fatal) {
           setError(`Video error: ${data.type}`);
+          setIsBuffering(false);
         }
       });
 
-      return () => hls.destroy();
+      return () => {
+        console.log('🧹 [VideoPlayer] Cleaning up HLS...');
+        clearTimeout(bufferingTimeout);
+        hls.destroy();
+      };
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = videoUrl;
       video.addEventListener('loadedmetadata', () => {
+        clearTimeout(bufferingTimeout);
+        setIsBuffering(false);
         if (initialTime > 0) video.currentTime = initialTime;
       });
       if (autoPlay) {
         video.play().catch(err => console.log('Autoplay prevented:', err));
       }
     } else {
+      clearTimeout(bufferingTimeout);
       setError('HLS is not supported in this browser');
+      setIsBuffering(false);
     }
   }, [hlsPath, autoPlay, initialTime, isAuthenticated, currentQuality]);
 
@@ -243,6 +355,186 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
     };
   }, [episodeId, isAuthenticated]);
 
+  // Effect: Load subtitle tracks using Blob URL (Non-blocking)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !subtitles || subtitles.length === 0) return;
+
+    let isMounted = true;
+    const blobUrls = []; // Track blob URLs for cleanup
+
+    const loadSubtitlesAsync = async () => {
+      console.log(`📝 [VideoPlayer] Loading ${subtitles.length} subtitle(s) asynchronously...`);
+      
+      // Remove existing tracks
+      while (video.textTracks.length > 0) {
+        const track = video.textTracks[0];
+        const trackElement = video.querySelector(`track[srclang="${track.language}"]`);
+        if (trackElement) {
+          video.removeChild(trackElement);
+        }
+      }
+
+      // Load each subtitle
+      for (let i = 0; i < subtitles.length; i++) {
+        const subtitle = subtitles[i];
+        
+        try {
+          console.log(`🔄 [VideoPlayer] Fetching subtitle: ${subtitle.label}...`);
+          
+          // Fetch subtitle file asynchronously
+          const response = await fetch(
+            `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/${subtitle.file}`
+          );
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          
+          const vttText = await response.text();
+          
+          // Debug: Log VTT content
+          console.log(`📝 VTT content preview (first 500 chars):`);
+          console.log(vttText.substring(0, 500));
+          console.log(`📊 VTT file size: ${vttText.length} characters`);
+          
+          // Convert SRT to VTT if needed
+          let finalVttText = vttText;
+          if (!vttText.trim().startsWith('WEBVTT')) {
+            console.log('🔄 [VideoPlayer] Converting SRT to VTT format...');
+            finalVttText = convertSrtToVtt(vttText);
+          }
+          
+          // Create blob URL from VTT content
+          const blob = new Blob([finalVttText], { type: 'text/vtt' });
+          const blobUrl = URL.createObjectURL(blob);
+          blobUrls.push(blobUrl); // Track for cleanup
+          
+          if (!isMounted) break; // Stop if component unmounted
+          
+          // Create track element with blob URL
+          const track = document.createElement('track');
+          track.kind = 'subtitles';
+          track.label = subtitle.label;
+          track.srclang = subtitle.language;
+          track.src = blobUrl; // ✅ Blob URL = instant, no network request!
+          
+          // Auto-enable first subtitle
+          if (i === 0) {
+            track.default = true;
+            track.mode = 'showing'; // Auto-enable
+            setSubtitleEnabled(true);
+          } else {
+            track.mode = 'hidden';
+          }
+          
+          video.appendChild(track);
+          
+          console.log(`✅ [VideoPlayer] Subtitle loaded: ${subtitle.label} (blob URL)`);
+          
+          // Debug: Log track info after append
+          setTimeout(() => {
+            if (video.textTracks[i]) {
+              const t = video.textTracks[i];
+              console.log(`🔍 Track ${i} status:`, {
+                label: t.label,
+                language: t.language,
+                mode: t.mode,
+                cues: t.cues?.length || 0,
+                activeCues: t.activeCues?.length || 0
+              });
+            }
+          }, 100);
+        } catch (error) {
+          console.error(`❌ [VideoPlayer] Failed to load subtitle: ${subtitle.label}`, error);
+        }
+      }
+      
+      console.log(`✅ [VideoPlayer] All subtitles loaded successfully`);
+    };
+
+    // Start loading
+    loadSubtitlesAsync();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      // Revoke blob URLs to free memory
+      blobUrls.forEach(url => URL.revokeObjectURL(url));
+      console.log('🧹 [VideoPlayer] Cleaned up subtitle blob URLs');
+    };
+  }, [subtitles]);
+
+  // Effect: Toggle subtitle visibility
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !video.textTracks || video.textTracks.length === 0) return;
+
+    console.log(`📝 [VideoPlayer] Toggling subtitle: ${subtitleEnabled ? 'ON' : 'OFF'}`);
+    console.log(`   Available tracks: ${video.textTracks.length}`);
+
+    // Toggle all text tracks
+    for (let i = 0; i < video.textTracks.length; i++) {
+      const track = video.textTracks[i];
+      const newMode = subtitleEnabled ? 'showing' : 'hidden';
+      console.log(`   Track ${i}: "${track.label}" - ${track.mode} -> ${newMode}`);
+      track.mode = newMode;
+    }
+
+    console.log(`✅ [VideoPlayer] Subtitle ${subtitleEnabled ? 'enabled' : 'disabled'}`);
+  }, [subtitleEnabled]);
+
+  // Effect: Apply subtitle styling
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Apply custom CSS to subtitle cues
+    const applySubtitleStyles = () => {
+      const tracks = video.textTracks;
+      if (!tracks || tracks.length === 0) return;
+
+      for (let i = 0; i < tracks.length; i++) {
+        const track = tracks[i];
+        if (track.kind === 'subtitles' && track.cues) {
+          for (let j = 0; j < track.cues.length; j++) {
+            const cue = track.cues[j];
+            
+            // Apply styles to cue
+            cue.line = parseInt(subtitleSettings.position); // Position from bottom
+            cue.size = 80; // Width of subtitle area
+            cue.align = 'center';
+          }
+        }
+      }
+    };
+
+    // Apply styles when cues are loaded
+    if (video.textTracks) {
+      for (let i = 0; i < video.textTracks.length; i++) {
+        const track = video.textTracks[i];
+        track.addEventListener('cuechange', applySubtitleStyles);
+      }
+    }
+
+    applySubtitleStyles();
+
+    return () => {
+      if (video && video.textTracks) {
+        for (let i = 0; i < video.textTracks.length; i++) {
+          const track = video.textTracks[i];
+          track.removeEventListener('cuechange', applySubtitleStyles);
+        }
+      }
+    };
+  }, [subtitleSettings]);
+
+  // Effect: Save subtitle settings to localStorage
+  useEffect(() => {
+    localStorage.setItem('subtitleSettings', JSON.stringify(subtitleSettings));
+    console.log('💾 Subtitle settings saved to localStorage');
+  }, [subtitleSettings]);
+
   // Control handlers
   const togglePlayPause = () => {
     const video = videoRef.current;
@@ -328,13 +620,9 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
       // Pause video
       video.pause();
 
-      // Show appropriate action based on quality
-      if (quality === '720p' && !isAuthenticated) {
-        // Show login modal
+      // 1080p requires login
+      if (quality === '1080p' && !isAuthenticated) {
         setShowAuthModal(true);
-      } else if (quality === '1080p' && !isPremium()) {
-        // Redirect to premium page
-        navigate('/premium');
       }
       
       return;
@@ -366,6 +654,12 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
     setSettingsTab(null);
   };
 
+  const toggleSubtitle = () => {
+    setSubtitleEnabled(!subtitleEnabled);
+    setShowSettings(false);
+    setSettingsTab(null);
+  };
+
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
@@ -377,6 +671,40 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
 
   return (
     <>
+      {/* Dynamic Subtitle Styling */}
+      <style>{`
+        video::cue {
+          font-family: ${subtitleSettings.fontFamily} !important;
+          font-size: ${subtitleSettings.fontSize} !important;
+          color: ${subtitleSettings.color === 'white' ? 'rgba(255,255,255,' + parseInt(subtitleSettings.textOpacity)/100 + ')' :
+                  subtitleSettings.color === 'black' ? 'rgba(0,0,0,' + parseInt(subtitleSettings.textOpacity)/100 + ')' :
+                  subtitleSettings.color === 'yellow' ? 'rgba(255,255,0,' + parseInt(subtitleSettings.textOpacity)/100 + ')' :
+                  subtitleSettings.color === 'blue' ? 'rgba(0,123,255,' + parseInt(subtitleSettings.textOpacity)/100 + ')' :
+                  subtitleSettings.color === 'pink' ? 'rgba(255,105,180,' + parseInt(subtitleSettings.textOpacity)/100 + ')' :
+                  subtitleSettings.color} !important;
+          background-color: ${subtitleSettings.bgColor === 'black' ? 'rgba(0,0,0,' + parseInt(subtitleSettings.bgOpacity)/100 + ')' :
+                              subtitleSettings.bgColor === '#333' ? 'rgba(51,51,51,' + parseInt(subtitleSettings.bgOpacity)/100 + ')' :
+                              subtitleSettings.bgColor === '#999' ? 'rgba(153,153,153,' + parseInt(subtitleSettings.bgOpacity)/100 + ')' :
+                              subtitleSettings.bgColor === 'blue' ? 'rgba(0,123,255,' + parseInt(subtitleSettings.bgOpacity)/100 + ')' :
+                              subtitleSettings.bgColor === 'pink' ? 'rgba(255,105,180,' + parseInt(subtitleSettings.bgOpacity)/100 + ')' :
+                              subtitleSettings.bgColor === 'white' ? 'rgba(255,255,255,' + parseInt(subtitleSettings.bgOpacity)/100 + ')' :
+                              'transparent'} !important;
+          text-shadow: ${subtitleSettings.textEdge === 'shadow' ? '2px 2px 4px rgba(0,0,0,0.8)' :
+                        subtitleSettings.textEdge === 'raised' ? '1px 1px 2px rgba(0,0,0,0.8), -1px -1px 2px rgba(255,255,255,0.3)' :
+                        subtitleSettings.textEdge === 'outline' ? '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000' :
+                        'none'} !important;
+        }
+        
+        /* Position subtitle with pixels from bottom */
+        video::-webkit-media-text-track-container {
+          bottom: ${subtitleSettings.position} !important;
+        }
+        
+        video::cue-region {
+          bottom: ${subtitleSettings.position} !important;
+        }
+      `}</style>
+
       <div 
         ref={containerRef}
         className="relative w-full h-full bg-black group"
@@ -390,6 +718,25 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
           playsInline
           onClick={togglePlayPause}
         />
+
+        {/* BUFFERING OVERLAY */}
+        {isBuffering && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-50">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mx-auto mb-4"></div>
+              <p className="text-white text-lg font-medium">Loading video...</p>
+            </div>
+          </div>
+        )}
+
+        {/* CENTER PLAY/PAUSE ICON */}
+        {!isPlaying && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="bg-black/60 rounded-full p-6 transition-all hover:bg-black/80">
+              <Play size={64} className="text-white" fill="white" />
+            </div>
+          </div>
+        )}
 
         {/* Custom Controls */}
         <div 
@@ -462,7 +809,7 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
             </div>
 
             {/* Right Controls */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {/* Settings */}
               <div className="relative">
                 <button
@@ -470,7 +817,7 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
                     setShowSettings(!showSettings);
                     setSettingsTab(null);
                   }}
-                  className="text-white hover:text-red-500 transition"
+                  className="text-white hover:text-red-500 transition flex items-center justify-center w-10 h-10"
                 >
                   <Settings size={24} />
                 </button>
@@ -479,37 +826,38 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
                 {showSettings && (
                   <div className="absolute bottom-12 right-0 bg-black/95 rounded-lg overflow-hidden min-w-[280px]">
                     {!settingsTab ? (
-                      // Main Settings Menu
                       <div className="py-2">
                         <div className="px-4 py-2 text-white font-semibold border-b border-gray-700">
                           Cài đặt
                         </div>
                         
-                        {/* Quality Option */}
-                        <button
-                          onClick={() => setSettingsTab('quality')}
-                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
-                        >
-                          <span>Chất lượng</span>
-                          <span className="text-gray-400 flex items-center gap-2">
-                            {getQualityLabel(currentQuality)}
-                            <span>›</span>
-                          </span>
-                        </button>
+                        {qualities && qualities.length > 1 && (
+                          <button
+                            onClick={() => setSettingsTab('quality')}
+                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                          >
+                            <span>Chất lượng</span>
+                            <span className="text-gray-400 flex items-center gap-2">
+                              {getQualityLabel(currentQuality)}
+                              <span>›</span>
+                            </span>
+                          </button>
+                        )}
 
-                        {/* Subtitle Option (Disabled) */}
-                        <button
-                          disabled
-                          className="w-full px-4 py-3 text-left text-gray-500 cursor-not-allowed flex items-center justify-between"
-                        >
-                          <span>Phụ đề</span>
-                          <span className="text-gray-600 flex items-center gap-2">
-                            Tùy chỉnh
-                            <span>›</span>
-                          </span>
-                        </button>
+                        {/* Subtitle Menu - Only show if subtitles available */}
+                        {subtitles && subtitles.length > 0 && (
+                          <button
+                            onClick={() => setSettingsTab('subtitle')}
+                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                          >
+                            <span>Phụ đề</span>
+                            <span className="text-gray-400 flex items-center gap-2">
+                              {subtitleEnabled ? 'Bật' : 'Tắt'}
+                              <span>›</span>
+                            </span>
+                          </button>
+                        )}
 
-                        {/* Speed Option */}
                         <button
                           onClick={() => setSettingsTab('speed')}
                           className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
@@ -522,7 +870,6 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
                         </button>
                       </div>
                     ) : settingsTab === 'quality' ? (
-                      // Quality Submenu
                       <div className="py-2">
                         <div className="px-4 py-2 text-white font-semibold border-b border-gray-700 flex items-center gap-2">
                           <button onClick={() => setSettingsTab(null)} className="hover:text-red-500">
@@ -531,48 +878,44 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
                           <span>Chất lượng</span>
                         </div>
                         
-                        {/* Auto */}
-                        <button
-                          onClick={() => handleQualitySelect('auto')}
-                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
-                        >
-                          <span>{getQualityLabel('auto')}</span>
-                          {currentQuality === 'auto' && <Check size={20} className="text-yellow-500" />}
-                        </button>
+                        {qualities && qualities.length > 1 && (
+                          <button
+                            onClick={() => handleQualitySelect('auto')}
+                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                          >
+                            <span>{getQualityLabel('auto')}</span>
+                            {currentQuality === 'auto' && <Check size={20} className="text-yellow-500" />}
+                          </button>
+                        )}
 
-                        {/* 1080p */}
-                        <button
-                          onClick={() => handleQualitySelect('1080p')}
-                          className={`w-full px-4 py-3 text-left hover:bg-white/10 transition flex items-center justify-between ${
-                            canAccessQuality('1080p') ? 'text-white' : 'text-gray-500'
-                          }`}
-                        >
-                          <span>FHD 1080p {!canAccessQuality('1080p') && '🔒'}</span>
-                          {currentQuality === '1080p' && <Check size={20} className="text-yellow-500" />}
-                        </button>
-
-                        {/* 720p */}
-                        <button
-                          onClick={() => handleQualitySelect('720p')}
-                          className={`w-full px-4 py-3 text-left hover:bg-white/10 transition flex items-center justify-between ${
-                            canAccessQuality('720p') ? 'text-white' : 'text-gray-500'
-                          }`}
-                        >
-                          <span>HD 720p {!canAccessQuality('720p') && '🔒'}</span>
-                          {currentQuality === '720p' && <Check size={20} className="text-yellow-500" />}
-                        </button>
-
-                        {/* 480p */}
-                        <button
-                          onClick={() => handleQualitySelect('480p')}
-                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
-                        >
-                          <span>480p</span>
-                          {currentQuality === '480p' && <Check size={20} className="text-yellow-500" />}
-                        </button>
+                        {qualities && qualities.map(q => {
+                          const qualityValue = q.quality;
+                          const isLocked = !canAccessQuality(qualityValue);
+                          
+                          let displayLabel = qualityValue;
+                          if (qualityValue === 'Upscaled') {
+                            displayLabel = '⚡ AI Upscaled';
+                          } else if (qualityValue === '1080p') {
+                            displayLabel = 'FHD 1080p';
+                          } else if (qualityValue === '720p') {
+                            displayLabel = 'HD 720p';
+                          }
+                          
+                          return (
+                            <button
+                              key={qualityValue}
+                              onClick={() => handleQualitySelect(qualityValue)}
+                              className={`w-full px-4 py-3 text-left hover:bg-white/10 transition flex items-center justify-between ${
+                                isLocked ? 'text-gray-500' : 'text-white'
+                              }`}
+                            >
+                              <span>{displayLabel} {isLocked && '🔒'}</span>
+                              {currentQuality === qualityValue && <Check size={20} className="text-yellow-500" />}
+                            </button>
+                          );
+                        })}
                       </div>
                     ) : settingsTab === 'speed' ? (
-                      // Speed Submenu
                       <div className="py-2">
                         <div className="px-4 py-2 text-white font-semibold border-b border-gray-700 flex items-center gap-2">
                           <button onClick={() => setSettingsTab(null)} className="hover:text-red-500">
@@ -592,6 +935,274 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
                           </button>
                         ))}
                       </div>
+                    ) : settingsTab === 'subtitle' ? (
+                      <div className="py-2">
+                        <div className="px-4 py-2 text-white font-semibold border-b border-gray-700 flex items-center gap-2">
+                          <button onClick={() => setSettingsTab(null)} className="hover:text-red-500">
+                            ‹
+                          </button>
+                          <span>Phụ đề chính</span>
+                        </div>
+                        
+                        {/* Toggle ON/OFF */}
+                        <button
+                          onClick={toggleSubtitle}
+                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                        >
+                          <span>Phụ đề</span>
+                          <span className="flex items-center gap-2">
+                            {subtitleEnabled ? (
+                              <Check size={20} className="text-green-500" />
+                            ) : (
+                              <div className="w-5 h-5 border-2 border-gray-500 rounded"></div>
+                            )}
+                          </span>
+                        </button>
+                        
+                        {/* Divider */}
+                        <div className="border-t border-gray-700 my-2"></div>
+                        
+                        {/* Customization Options */}
+                        <button
+                          onClick={() => setSettingsTab('subtitle-color')}
+                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                        >
+                          <span>Màu chữ</span>
+                          <span className="text-gray-400 flex items-center gap-2">
+                            {subtitleOptions.colors.find(c => c.value === subtitleSettings.color)?.label}
+                            <span>›</span>
+                          </span>
+                        </button>
+                        
+                        <button
+                          onClick={() => setSettingsTab('subtitle-size')}
+                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                        >
+                          <span>Cỡ chữ</span>
+                          <span className="text-gray-400 flex items-center gap-2">
+                            {subtitleSettings.fontSize}
+                            <span>›</span>
+                          </span>
+                        </button>
+                        
+                        <button
+                          onClick={() => setSettingsTab('subtitle-opacity')}
+                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                        >
+                          <span>Độ trong</span>
+                          <span className="text-gray-400 flex items-center gap-2">
+                            {subtitleSettings.textOpacity}
+                            <span>›</span>
+                          </span>
+                        </button>
+                        
+                        <button
+                          onClick={() => setSettingsTab('subtitle-font')}
+                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                        >
+                          <span>Font chữ</span>
+                          <span className="text-gray-400 flex items-center gap-2">
+                            {subtitleSettings.fontFamily}
+                            <span>›</span>
+                          </span>
+                        </button>
+                        
+                        <button
+                          onClick={() => setSettingsTab('subtitle-edge')}
+                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                        >
+                          <span>Viền chữ</span>
+                          <span className="text-gray-400 flex items-center gap-2">
+                            {subtitleOptions.textEdges.find(e => e.value === subtitleSettings.textEdge)?.label}
+                            <span>›</span>
+                          </span>
+                        </button>
+                        
+                        <button
+                          onClick={() => setSettingsTab('subtitle-bg')}
+                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                        >
+                          <span>Màu nền</span>
+                          <span className="text-gray-400 flex items-center gap-2">
+                            {subtitleOptions.bgColors.find(c => c.value === subtitleSettings.bgColor)?.label}
+                            <span>›</span>
+                          </span>
+                        </button>
+                        
+                        <button
+                          onClick={() => setSettingsTab('subtitle-bg-opacity')}
+                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                        >
+                          <span>Độ trong Nền</span>
+                          <span className="text-gray-400 flex items-center gap-2">
+                            {subtitleSettings.bgOpacity}
+                            <span>›</span>
+                          </span>
+                        </button>
+                        
+                        <button
+                          onClick={() => setSettingsTab('subtitle-position')}
+                          className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                        >
+                          <span>Vị trí</span>
+                          <span className="text-gray-400 flex items-center gap-2">
+                            {subtitleSettings.position}
+                            <span>›</span>
+                          </span>
+                        </button>
+                      </div>
+                    ) : settingsTab.startsWith('subtitle-') ? (
+                      /* Subtitle Sub-options */
+                      <div className="py-2">
+                        <div className="px-4 py-2 text-white font-semibold border-b border-gray-700 flex items-center gap-2">
+                          <button onClick={() => setSettingsTab('subtitle')} className="hover:text-red-500">
+                            ‹
+                          </button>
+                          <span>
+                            {settingsTab === 'subtitle-color' && 'Phụ đề chính / Màu chữ'}
+                            {settingsTab === 'subtitle-size' && 'Phụ đề chính / Cỡ chữ'}
+                            {settingsTab === 'subtitle-opacity' && 'Phụ đề chính / Độ trong'}
+                            {settingsTab === 'subtitle-font' && 'Phụ đề chính / Font chữ'}
+                            {settingsTab === 'subtitle-edge' && 'Phụ đề chính / Viền chữ'}
+                            {settingsTab === 'subtitle-bg' && 'Phụ đề chính / Màu nền'}
+                            {settingsTab === 'subtitle-bg-opacity' && 'Phụ đề chính / Độ trong Nền'}
+                            {settingsTab === 'subtitle-position' && 'Phụ đề chính / Vị trí'}
+                          </span>
+                        </div>
+                        
+                        {/* Color Options */}
+                        {settingsTab === 'subtitle-color' && subtitleOptions.colors.map(color => (
+                          <button
+                            key={color.value}
+                            onClick={() => {
+                              setSubtitleSettings(prev => ({ ...prev, color: color.value }));
+                              setSettingsTab('subtitle');
+                            }}
+                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                          >
+                            <span className="flex items-center gap-3">
+                              <div 
+                                className="w-6 h-6 rounded-full border-2 border-white"
+                                style={{ backgroundColor: color.value }}
+                              ></div>
+                              {color.label}
+                            </span>
+                            {subtitleSettings.color === color.value && <Check size={20} className="text-yellow-500" />}
+                          </button>
+                        ))}
+                        
+                        {/* Font Size Options */}
+                        {settingsTab === 'subtitle-size' && subtitleOptions.fontSizes.map(size => (
+                          <button
+                            key={size}
+                            onClick={() => {
+                              setSubtitleSettings(prev => ({ ...prev, fontSize: size }));
+                              setSettingsTab('subtitle');
+                            }}
+                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                          >
+                            <span>{size}</span>
+                            {subtitleSettings.fontSize === size && <Check size={20} className="text-yellow-500" />}
+                          </button>
+                        ))}
+                        
+                        {/* Text Opacity Options */}
+                        {settingsTab === 'subtitle-opacity' && subtitleOptions.opacities.map(opacity => (
+                          <button
+                            key={opacity}
+                            onClick={() => {
+                              setSubtitleSettings(prev => ({ ...prev, textOpacity: opacity }));
+                              setSettingsTab('subtitle');
+                            }}
+                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                          >
+                            <span>{opacity}</span>
+                            {subtitleSettings.textOpacity === opacity && <Check size={20} className="text-yellow-500" />}
+                          </button>
+                        ))}
+                        
+                        {/* Font Family Options */}
+                        {settingsTab === 'subtitle-font' && subtitleOptions.fontFamilies.map(font => (
+                          <button
+                            key={font}
+                            onClick={() => {
+                              setSubtitleSettings(prev => ({ ...prev, fontFamily: font }));
+                              setSettingsTab('subtitle');
+                            }}
+                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                            style={{ fontFamily: font }}
+                          >
+                            <span>{font}</span>
+                            {subtitleSettings.fontFamily === font && <Check size={20} className="text-yellow-500" />}
+                          </button>
+                        ))}
+                        
+                        {/* Text Edge Options */}
+                        {settingsTab === 'subtitle-edge' && subtitleOptions.textEdges.map(edge => (
+                          <button
+                            key={edge.value}
+                            onClick={() => {
+                              setSubtitleSettings(prev => ({ ...prev, textEdge: edge.value }));
+                              setSettingsTab('subtitle');
+                            }}
+                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                          >
+                            <span>{edge.label}</span>
+                            {subtitleSettings.textEdge === edge.value && <Check size={20} className="text-yellow-500" />}
+                          </button>
+                        ))}
+                        
+                        {/* Background Color Options */}
+                        {settingsTab === 'subtitle-bg' && subtitleOptions.bgColors.map(color => (
+                          <button
+                            key={color.value}
+                            onClick={() => {
+                              setSubtitleSettings(prev => ({ ...prev, bgColor: color.value }));
+                              setSettingsTab('subtitle');
+                            }}
+                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                          >
+                            <span className="flex items-center gap-3">
+                              <div 
+                                className="w-6 h-6 rounded border-2 border-white"
+                                style={{ backgroundColor: color.value }}
+                              ></div>
+                              {color.label}
+                            </span>
+                            {subtitleSettings.bgColor === color.value && <Check size={20} className="text-yellow-500" />}
+                          </button>
+                        ))}
+                        
+                        {/* Background Opacity Options */}
+                        {settingsTab === 'subtitle-bg-opacity' && subtitleOptions.opacities.map(opacity => (
+                          <button
+                            key={opacity}
+                            onClick={() => {
+                              setSubtitleSettings(prev => ({ ...prev, bgOpacity: opacity }));
+                              setSettingsTab('subtitle');
+                            }}
+                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                          >
+                            <span>{opacity}</span>
+                            {subtitleSettings.bgOpacity === opacity && <Check size={20} className="text-yellow-500" />}
+                          </button>
+                        ))}
+                        
+                        {/* Position Options */}
+                        {settingsTab === 'subtitle-position' && subtitleOptions.positions.map(position => (
+                          <button
+                            key={position}
+                            onClick={() => {
+                              setSubtitleSettings(prev => ({ ...prev, position: position }));
+                              setSettingsTab('subtitle');
+                            }}
+                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition flex items-center justify-between"
+                          >
+                            <span>{position}</span>
+                            {subtitleSettings.position === position && <Check size={20} className="text-yellow-500" />}
+                          </button>
+                        ))}
+                      </div>
                     ) : null}
                   </div>
                 )}
@@ -600,7 +1211,7 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
               {/* Fullscreen */}
               <button
                 onClick={toggleFullscreen}
-                className="text-white hover:text-red-500 transition"
+                className="text-white hover:text-red-500 transition flex items-center justify-center w-10 h-10"
               >
                 <Maximize size={24} />
               </button>
@@ -618,4 +1229,5 @@ const VideoPlayer = ({ hlsPath, qualities, episodeId, autoPlay = true, initialTi
   );
 };
 
-export default VideoPlayer;
+// Memoize component to prevent unnecessary re-renders
+export default memo(VideoPlayer);

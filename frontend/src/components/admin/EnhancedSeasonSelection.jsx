@@ -16,19 +16,31 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
     description: '',
     status: 'upcoming',
     studios: [],
-    genres: []
+    genres: [],
+    isUpscaled: false
   })
+  const [posterFile, setPosterFile] = useState(null)
+  const [posterPreview, setPosterPreview] = useState(null)
   const [loading, setLoading] = useState(false)
   const [loadingSeasons, setLoadingSeasons] = useState(!prefetchedSeasons)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [seasonToEdit, setSeasonToEdit] = useState(null)
 
+  // Series status options
+  const seriesStatusOptions = [
+    { value: 'ongoing', label: 'Ongoing', color: 'bg-green-100 text-green-600' },
+    { value: 'completed', label: 'Completed', color: 'bg-blue-100 text-blue-600' },
+    { value: 'upcoming', label: 'Upcoming', color: 'bg-yellow-100 text-yellow-600' },
+    { value: 'hiatus', label: 'On Hiatus', color: 'bg-orange-100 text-orange-600' },
+    { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-600' }
+  ]
+
   // Season type options
   const seasonTypeOptions = [
-    { value: 'tv', label: 'TV Series', description: 'Regular television series' },
-    { value: 'movie', label: 'Movie', description: 'Theatrical film' },
-    { value: 'ova', label: 'OVA', description: 'Original Video Animation' },
-    { value: 'special', label: 'Special', description: 'Special episodes or content' }
+    { value: 'tv', label: 'TV Series' },
+    { value: 'movie', label: 'Movie' },
+    { value: 'ova', label: 'OVA' },
+    { value: 'special', label: 'Special' }
   ]
 
   // Season status options
@@ -121,13 +133,47 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
         description: newSeason.description.trim() || undefined,
         status: newSeason.status,
         studios: newSeason.studios.filter(s => s.trim()),
-        genres: newSeason.genres.filter(g => g.trim())
+        genres: newSeason.genres.filter(g => g.trim()),
+        isUpscaled: newSeason.isUpscaled
       }
 
+      // Create season first
       const response = await api.post('/admin/seasons', seasonData)
+      
       if (response.data.success) {
-        setUploadData(prev => ({ ...prev, season: response.data.data }))
-        setSuccess(`Season "${response.data.data.title}" created successfully!`)
+        const createdSeason = response.data.data
+        
+        // Upload poster if selected
+        if (posterFile) {
+          try {
+            const formData = new FormData()
+            formData.append('poster', posterFile)
+            
+            const posterResponse = await api.post(
+              `/admin/seasons/${createdSeason._id}/poster`,
+              formData,
+              {
+                headers: {
+                  'Content-Type': 'multipart/form-data'
+                }
+              }
+            )
+            
+            if (posterResponse.data.success) {
+              // Update local season with poster path
+              createdSeason.posterImage = posterResponse.data.data.posterImage
+              console.log('Poster uploaded successfully')
+            }
+          } catch (posterError) {
+            console.error('Poster upload failed:', posterError)
+            setError('Season created but poster upload failed')
+            setTimeout(() => setError(''), 3000)
+          }
+        }
+        
+        setUploadData(prev => ({ ...prev, season: createdSeason }))
+        setSuccess(`Season "${createdSeason.title}" created successfully!`)
+        
         // Auto proceed to next step
         setTimeout(() => {
           setSuccess('')
@@ -189,24 +235,85 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
       description: '',
       status: 'upcoming',
       studios: [],
-      genres: []
+      genres: [],
+      isUpscaled: false
     })
+    setPosterFile(null)
+    setPosterPreview(null)
     setError('')
+  }
+
+  const handlePosterChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select an image file')
+        return
+      }
+      
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size must be less than 5MB')
+        return
+      }
+      
+      setPosterFile(file)
+      
+      // Create preview
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setPosterPreview(reader.result)
+      }
+      reader.readAsDataURL(file)
+    }
   }
 
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-6">Select or Create Season</h2>
       
-      {/* Selected Series Info */}
-      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
+      {/* Selected Series Info - With Banner */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6 shadow-sm">
         <div className="flex items-center">
-          <svg className="w-5 h-5 text-indigo-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div>
-            <p className="text-indigo-800 font-medium">Selected Series: {uploadData.series?.title || 'None'}</p>
-            <p className="text-indigo-600 text-sm">{uploadData.series?.originalTitle || ''} • {uploadData.series?.releaseYear || ''}</p>
+          {/* Banner - Left */}
+          <div className="w-32 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+            {uploadData.series?.bannerImage ? (
+              <img
+                src={`http://localhost:5000/${uploadData.series.bannerImage}`}
+                alt={uploadData.series.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+            )}
+          </div>
+
+          {/* Info - Right */}
+          <div className="ml-5 flex-1 min-w-0">
+            {/* Title */}
+            <h3 className="text-lg font-bold text-gray-900 mb-2 truncate">
+              {uploadData.series?.title || 'No Series Selected'}
+            </h3>
+            
+            {/* Release Year and Status */}
+            <div className="flex items-center space-x-3">
+              <span className="text-sm text-gray-600 font-medium">
+                {uploadData.series?.releaseYear || '-'}
+              </span>
+              {uploadData.series?.status && (() => {
+                const statusOption = seriesStatusOptions.find(s => s.value === uploadData.series.status) || seriesStatusOptions[0]
+                return (
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusOption.color}`}>
+                    {statusOption.label}
+                  </span>
+                )
+              })()}
+            </div>
           </div>
         </div>
       </div>
@@ -296,6 +403,11 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
                         {typeOption.label}
                       </span>
                       <span>{season.releaseYear}</span>
+                      {season.isUpscaled && (
+                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-600">
+                          ⚡ AI Upscaled
+                        </span>
+                      )}
                     </div>
                     
                     <div className="text-xs text-gray-400">
@@ -362,13 +474,14 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
         {showCreateNew && (
           <div className="bg-gray-50 rounded-xl p-6">
             <div className="space-y-6">
-              {/* Season Type and Number */}
+              {/* Season Information - First Row: Type + Number + AI Upscaling */}
               <div>
                 <h4 className="text-md font-medium text-gray-900 mb-4">Season Information</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Season Type */}
                   <div>
                     <label className="block text-gray-700 text-sm font-medium mb-2">
-                      Season Type *
+                      Season Type <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={newSeason.seasonType}
@@ -381,14 +494,12 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {seasonTypeOptions.find(t => t.value === newSeason.seasonType)?.description}
-                    </p>
                   </div>
                   
+                  {/* Season Number */}
                   <div>
                     <label className="block text-gray-700 text-sm font-medium mb-2">
-                      {newSeason.seasonType === 'movie' ? 'Year' : 'Season Number'} *
+                      {newSeason.seasonType === 'movie' ? 'Year' : 'Season Number'} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
@@ -399,34 +510,51 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
                       max={newSeason.seasonType === 'movie' ? new Date().getFullYear() + 5 : 50}
                     />
                   </div>
-                  
+
+                  {/* AI Upscaling Toggle - Beautiful Button Style */}
                   <div>
                     <label className="block text-gray-700 text-sm font-medium mb-2">
-                      Release Year *
+                      AI Upscaling
                     </label>
-                    <input
-                      type="number"
-                      value={newSeason.releaseYear}
-                      onChange={(e) => setNewSeason(prev => ({ ...prev, releaseYear: parseInt(e.target.value) }))}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                      min="1900"
-                      max={new Date().getFullYear() + 5}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewSeason(prev => ({ ...prev, isUpscaled: !prev.isUpscaled }))}
+                      className={`w-full h-12 px-4 rounded-lg font-medium transition-all flex items-center justify-center ${
+                        newSeason.isUpscaled
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md hover:shadow-lg'
+                          : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-purple-400'
+                      }`}
+                    >
+                      {newSeason.isUpscaled ? (
+                        <>
+                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          AI Upscaling Enabled
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          Enable AI Upscaling
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* Auto-generated Title */}
+              {/* Season Title */}
               <div>
                 <label className="block text-gray-700 text-sm font-medium mb-2">
-                  Season Title *
+                  Season Title <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={newSeason.title}
                   onChange={(e) => setNewSeason(prev => ({ ...prev, title: e.target.value }))}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                  placeholder="Season title (auto-generated based on type and number)"
                 />
               </div>
 
@@ -438,39 +566,107 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
                 <textarea
                   value={newSeason.description}
                   onChange={(e) => setNewSeason(prev => ({ ...prev, description: e.target.value }))}
-                  rows={2}
+                  rows={3}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                  placeholder="Brief description of this season"
                 />
               </div>
 
-              {/* Status */}
-              <div>
-                <label className="block text-gray-700 text-sm font-medium mb-2">
-                  Status *
-                </label>
-                <select
-                  value={newSeason.status}
-                  onChange={(e) => setNewSeason(prev => ({ ...prev, status: e.target.value }))}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                >
-                  {seasonStatusOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+              {/* Poster + Release Year + Status - Same Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                {/* Poster Upload - Left Half */}
+                <div>
+                  <label className="block text-gray-700 text-sm font-medium mb-2">
+                    Poster Image
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-indigo-400 transition-colors">
+                    {posterPreview ? (
+                      <div className="relative">
+                        <img
+                          src={posterPreview}
+                          alt="Poster preview"
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPosterFile(null)
+                            setPosterPreview(null)
+                          }}
+                          className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <svg className="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        <div className="mt-2">
+                          <label className="cursor-pointer bg-white px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors inline-block">
+                            Choose Poster
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              onChange={handlePosterChange}
+                              className="hidden" 
+                            />
+                          </label>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          PNG, JPG, WEBP up to 5MB
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Release Year + Status - Right Half */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-gray-700 text-sm font-medium mb-2">
+                      Release Year <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={newSeason.releaseYear}
+                      onChange={(e) => setNewSeason(prev => ({ ...prev, releaseYear: parseInt(e.target.value) }))}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                      min="1900"
+                      max={new Date().getFullYear() + 5}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-gray-700 text-sm font-medium mb-2">
+                      Status <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={newSeason.status}
+                      onChange={(e) => setNewSeason(prev => ({ ...prev, status: e.target.value }))}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                    >
+                      {seasonStatusOptions.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              {/* Production Details - Enhanced with MultiSelect */}
+              {/* Production Details - Studios + Genres on Same Row */}
               <div>
                 <h4 className="text-md font-medium text-gray-900 mb-4">Production Details</h4>
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <MultiSelectInput
                     label="Animation Studios *"
                     value={newSeason.studios}
                     onChange={(value) => setNewSeason(prev => ({ ...prev, studios: value }))}
-                    placeholder="Search and select studios (e.g., Mappa, Studio Pierrot)"
+                    placeholder=""
                     searchFunction={studioService.searchStudios}
                     required
                     maxSelections={3}
@@ -480,59 +676,54 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
                     label="Genres *"
                     value={newSeason.genres}
                     onChange={(value) => setNewSeason(prev => ({ ...prev, genres: value }))}
-                    placeholder="Search and select genres (e.g., Action, Adventure)"
+                    placeholder=""
                     searchFunction={genreService.searchGenres}
                     required
                     maxSelections={8}
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Studios and genres can be different from other seasons of the same series
-                </p>
               </div>
 
-              {/* Action Buttons - Fixed Layout */}
-              <div className="pt-6 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-500">
-                    * Required fields
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <button
-                      onClick={onBack}
-                      className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                      </svg>
-                      Back to Series
-                    </button>
-                    <button
-                      onClick={resetForm}
-                      className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-6 py-3 rounded-lg font-medium transition-colors"
-                    >
-                      Reset Form
-                    </button>
-                    <button
-                      onClick={createSeason}
-                      disabled={loading || !newSeason.title.trim() || newSeason.studios.length === 0 || newSeason.genres.length === 0}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-8 rounded-lg disabled:opacity-50 hover:shadow-lg transition-all disabled:hover:shadow-none flex items-center"
-                    >
-                      {loading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Creating Season...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Create Season & Continue
-                        </>
-                      )}
-                    </button>
-                  </div>
+              {/* Action Buttons */}
+              <div className="pt-6 border-t border-gray-200 flex items-center justify-between">
+                <div className="text-sm text-red-500 font-medium">
+                  * Bắt buộc
+                </div>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={onBack}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Back to Series
+                  </button>
+                  <button
+                    onClick={resetForm}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-6 py-3 rounded-lg font-medium transition-colors"
+                  >
+                    Reset Form
+                  </button>
+                  <button
+                    onClick={createSeason}
+                    disabled={loading || !newSeason.title.trim() || newSeason.studios.length === 0 || newSeason.genres.length === 0}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-8 rounded-lg disabled:opacity-50 hover:shadow-lg transition-all disabled:hover:shadow-none flex items-center"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Creating Season...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Create Season & Continue
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>

@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, User, Settings, LogOut, Crown } from 'lucide-react';
+import { User, Settings, LogOut, Crown } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import AuthModal from '../common/AuthModal';
 import authService from '../../services/authService';
+import { NotificationBell } from '../notifications'; // Correct path
 
 const Header = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -353,10 +354,7 @@ const Header = () => {
               {isAuthenticated && user ? (
                 <div className="flex items-center space-x-3">
                   {/* Notification Bell */}
-                  <button className="relative p-2 text-white/90 hover:text-white transition-colors">
-                    <Bell size={20} />
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                  </button>
+                  <NotificationBell isAuthenticated={isAuthenticated} />
 
                   {/* User Menu */}
                   <div ref={userMenuRef} className="relative">

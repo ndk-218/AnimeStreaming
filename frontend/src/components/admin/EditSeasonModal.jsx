@@ -10,7 +10,8 @@ function EditSeasonModal({ season, isOpen, onClose, onSuccess }) {
     releaseYear: new Date().getFullYear(),
     status: 'upcoming',
     studios: [],
-    genres: []
+    genres: [],
+    isUpscaled: false
   })
   const [posterFile, setPosterFile] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -33,7 +34,8 @@ function EditSeasonModal({ season, isOpen, onClose, onSuccess }) {
         releaseYear: season.releaseYear || new Date().getFullYear(),
         status: season.status || 'upcoming',
         studios: season.studios?.map(s => s.name || s) || [],
-        genres: season.genres?.map(g => g.name || g) || []
+        genres: season.genres?.map(g => g.name || g) || [],
+        isUpscaled: season.isUpscaled || false
       })
       setError('')
       setPosterFile(null)
@@ -187,8 +189,8 @@ function EditSeasonModal({ season, isOpen, onClose, onSuccess }) {
               />
             </div>
 
-            {/* Release Year & Status */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Release Year, Status & Upscale Info */}
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-gray-700 text-sm font-medium mb-2">
                   Release Year *
@@ -218,6 +220,30 @@ function EditSeasonModal({ season, isOpen, onClose, onSuccess }) {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 text-sm font-medium mb-2">
+                  AI Upscaling
+                </label>
+                <div className={`w-full p-3 border rounded-lg flex items-center justify-center ${
+                  formData.isUpscaled 
+                    ? 'bg-purple-50 border-purple-300' 
+                    : 'bg-gray-50 border-gray-300'
+                }`}>
+                  {formData.isUpscaled ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                      ⚡ Enabled
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-500">
+                      Disabled
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Cannot be changed after creation
+                </p>
               </div>
             </div>
 

@@ -6,6 +6,7 @@ import Header from '../components/public/Header';
 import ProfileAccount from '../components/profile/ProfileAccount';
 import ProfileFavorites from '../components/profile/ProfileFavorites';
 import ProfileContinueWatching from '../components/profile/ProfileContinueWatching';
+import ProfileNotifications from '../components/profile/ProfileNotifications';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
@@ -80,17 +81,7 @@ const ProfilePage = () => {
               {currentTab === 'account' && <ProfileAccount />}
               {currentTab === 'favorites' && <ProfileFavorites />}
               {currentTab === 'continue' && <ProfileContinueWatching />}
-              {currentTab === 'notifications' && (
-                <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
-                  <Bell size={48} className="mx-auto text-gray-400 mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Thông báo
-                  </h3>
-                  <p className="text-gray-600">
-                    Tính năng đang được phát triển...
-                  </p>
-                </div>
-              )}
+              {currentTab === 'notifications' && <ProfileNotifications />}
             </div>
           </div>
         </div>

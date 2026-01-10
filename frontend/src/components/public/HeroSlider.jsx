@@ -65,17 +65,11 @@ const HeroSlider = () => {
     setTimeout(() => setIsAutoPlaying(true), 10000);
   };
 
-  /**
-   * Handle "Xem Ngay" button click
-   * Navigate to first episode (or latest episode if available)
-   * WatchPage will handle resume logic
-   */
   const handlePlayClick = async () => {
     const anime = featuredAnime[currentSlide];
     if (!anime?.series?._id || !anime._id) return;
 
     try {
-      // Get latest episode of this season (most likely to be watched)
       const episodesResponse = await fetch(
         `http://localhost:5000/api/seasons/${anime._id}/episodes?page=1&limit=1&sort=desc`
       );
@@ -84,24 +78,17 @@ const HeroSlider = () => {
       if (episodesData.success && episodesData.data.episodes.length > 0) {
         const latestEpisode = episodesData.data.episodes[0];
         console.log('📺 Navigating to latest episode:', latestEpisode._id);
-        // Navigate without resume time - WatchPage will handle it
         navigate(`/watch/${latestEpisode._id}`);
       } else {
-        // No episodes available, go to series detail instead
         console.warn('⚠️ No episodes available, redirecting to series page');
         navigate(`/series/${anime.series.slug}?season=${anime.seasonNumber}`);
       }
     } catch (error) {
       console.error('Error handling play click:', error);
-      // Fallback to series page
       navigate(`/series/${anime.series.slug}?season=${anime.seasonNumber}`);
     }
   };
 
-  /**
-   * Handle "Chi Tiết" button click
-   * Navigate to series detail with pre-selected season
-   */
   const handleDetailClick = () => {
     const anime = featuredAnime[currentSlide];
     if (anime?.series?.slug && anime.seasonNumber) {
@@ -109,9 +96,6 @@ const HeroSlider = () => {
     }
   };
 
-  /**
-   * Handle title click - same as detail button
-   */
   const handleTitleClick = () => {
     handleDetailClick();
   };
@@ -161,6 +145,7 @@ const HeroSlider = () => {
               e.target.src = 'https://via.placeholder.com/1920x600?text=No+Banner';
             }}
           />
+          
           {/* Gradient Overlay - Minimal, only for text readability */}
           <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
         </div>
@@ -234,7 +219,7 @@ const HeroSlider = () => {
 
             {/* Action Buttons */}
             <div className="flex items-center space-x-4">
-              {/* Xem Ngay Button - Navigate to watch page */}
+              {/* Xem Ngay Button */}
               <button
                 onClick={handlePlayClick}
                 className="flex items-center space-x-3 px-8 py-4 bg-[#FFD700] hover:bg-[#FFC700] text-gray-900 font-bold rounded-lg transition-all transform hover:scale-105 shadow-xl hover:shadow-2xl"
@@ -249,7 +234,7 @@ const HeroSlider = () => {
                 <span>Xem Ngay</span>
               </button>
 
-              {/* Chi Tiết Button - Navigate to series detail */}
+              {/* Chi Tiết Button */}
               <button
                 onClick={handleDetailClick}
                 className="flex items-center space-x-2 px-6 py-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-lg transition-all shadow-lg hover:shadow-xl backdrop-blur-sm"

@@ -4,12 +4,15 @@ import api from '../../services/api'
 
 function ProcessingStatus({ uploadData, onComplete, setError }) {
   const [processingStatus, setProcessingStatus] = useState('pending')
+  const [processingStage, setProcessingStage] = useState('uploading')
   const [processingProgress, setProcessingProgress] = useState(0)
   const [currentStep, setCurrentStep] = useState('Initializing...')
   const [logs, setLogs] = useState([])
   const [socket, setSocket] = useState(null)
   const [estimatedTime, setEstimatedTime] = useState(null)
   const [startTime] = useState(Date.now())
+  const [cancelling, setCancelling] = useState(false)
+  const [isUpscaling, setIsUpscaling] = useState(false)
 
   const episodeId = uploadData?.episode?._id || uploadData?.processingId
 
@@ -84,8 +87,15 @@ function ProcessingStatus({ uploadData, onComplete, setError }) {
         // Response structure: { success: true, data: { episode: {...}, job: {...} } }
         const episodeData = response.data.data.episode
         
+        // Update processingStage
+        if (episodeData.processingStage) {
+          setProcessingStage(episodeData.processingStage)
+          setIsUpscaling(episodeData.processingStage === 'upscaling')
+        }
+        
         if (episodeData.processingStatus === 'completed') {
           setProcessingStatus('completed')
+          setProcessingStage('completed')
           setProcessingProgress(100)
           setCurrentStep('Processing Complete!')
           addLog('Video ready for streaming', 'success')
@@ -147,6 +157,47 @@ function ProcessingStatus({ uploadData, onComplete, setError }) {
     }
   }
 
+  const getStageLabel = (stage) => {
+    switch(stage) {
+      case 'upscaling':
+        return '🚀 AI Upscaling (2-3 hours)'
+      case 'converting':
+        return '🎬 Converting to HLS'
+      case 'completed':
+        return '✅ Completed'
+      default:
+        return '📤 Uploading'
+    }
+  }
+
+  const handleCancelProcessing = async () => {
+    const confirmMessage = isUpscaling 
+      ? 'Cancel upscaling? This will DELETE the episode and all files permanently. Cannot be undone.'
+      : 'Cancel processing? This will DELETE the episode and all files permanently. Cannot be undone.'
+    
+    if (!window.confirm(confirmMessage)) {
+      return
+    }
+
+    setCancelling(true)
+    try {
+      const response = await api.post(`/episodes/admin/${episodeId}/cancel-processing`)
+      if (response.data.success) {
+        addLog('Processing cancelled successfully', 'warning')
+        setProcessingStatus('cancelled')
+        setCurrentStep('Processing Cancelled')
+        setTimeout(() => {
+          onComplete() // Go back to upload
+        }, 2000)
+      }
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to cancel processing')
+      addLog('Failed to cancel processing', 'error')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
   if (!uploadData?.episode && !uploadData?.processingId) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
@@ -187,6 +238,26 @@ function ProcessingStatus({ uploadData, onComplete, setError }) {
 
       {/* Progress Bar */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+        {/* Stage Indicator */}
+        {processingStatus === 'processing' && (
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-gray-700">Current Stage:</span>
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
+                {getStageLabel(processingStage)}
+              </span>
+            </div>
+            {isUpscaling && (
+              <div className="flex items-center text-xs text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Expected: 2-3 hours per episode
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-gray-800">{currentStep}</h3>
           <div className="flex items-center space-x-4 text-sm">
@@ -200,6 +271,7 @@ function ProcessingStatus({ uploadData, onComplete, setError }) {
             className={`h-full transition-all duration-500 ${
               processingStatus === 'completed' ? 'bg-green-500' :
               processingStatus === 'failed' ? 'bg-red-500' :
+              isUpscaling ? 'bg-purple-500' :
               'bg-blue-500'
             }`}
             style={{ width: `${processingProgress}%` }}
@@ -211,9 +283,23 @@ function ProcessingStatus({ uploadData, onComplete, setError }) {
         </div>
 
         {processingStatus === 'processing' && (
-          <p className="text-sm text-gray-500 mt-2">
-            Converting video to HLS format... This may take several minutes depending on video size.
-          </p>
+          <div className="mt-3">
+            {isUpscaling ? (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                <p className="text-sm text-purple-700 font-medium">
+                  🤖 AI Upscaling in progress...
+                </p>
+                <p className="text-xs text-purple-600 mt-1">
+                  Enhancing video quality with AI. This process takes 2-3 hours per 24-minute episode.
+                  The video will be converted to HLS format after upscaling completes.
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Converting video to HLS format... This may take several minutes depending on video size.
+              </p>
+            )}
+          </div>
         )}
       </div>
 
@@ -243,29 +329,61 @@ function ProcessingStatus({ uploadData, onComplete, setError }) {
 
       {/* Action Buttons */}
       <div className="flex items-center justify-between pt-6 border-t border-gray-200">
-        {processingStatus === 'completed' && (
-          <div className="text-sm text-green-600 font-medium">
-            ✅ Episode ready for streaming!
-          </div>
-        )}
-        {processingStatus === 'failed' && (
-          <div className="text-sm text-red-600 font-medium">
-            ❌ Processing failed. Check worker logs for details.
-          </div>
-        )}
-        {processingStatus !== 'completed' && processingStatus !== 'failed' && (
-          <div className="text-sm text-gray-500">
-            Processing in progress... Please wait.
-          </div>
-        )}
+        <div>
+          {processingStatus === 'completed' && (
+            <div className="text-sm text-green-600 font-medium">
+              ✅ Episode ready for streaming!
+            </div>
+          )}
+          {processingStatus === 'failed' && (
+            <div className="text-sm text-red-600 font-medium">
+              ❌ Processing failed. Check worker logs for details.
+            </div>
+          )}
+          {processingStatus === 'cancelled' && (
+            <div className="text-sm text-yellow-600 font-medium">
+              🛑 Processing cancelled. Episode deleted.
+            </div>
+          )}
+          {processingStatus !== 'completed' && processingStatus !== 'failed' && processingStatus !== 'cancelled' && (
+            <div className="text-sm text-gray-500">
+              Processing in progress... {isUpscaling ? 'This may take 2-3 hours.' : 'Please wait.'}
+            </div>
+          )}
+        </div>
         
-        <button
-          onClick={onComplete}
-          disabled={processingStatus === 'processing'}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-        >
-          {processingStatus === 'completed' ? 'Upload Another Episode' : 'Back to Upload'}
-        </button>
+        <div className="flex items-center space-x-3">
+          {/* Cancel Button - Only show when processing */}
+          {processingStatus === 'processing' && (
+            <button
+              onClick={handleCancelProcessing}
+              disabled={cancelling}
+              className="bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-6 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center"
+            >
+              {cancelling ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Cancelling...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Cancel Processing
+                </>
+              )}
+            </button>
+          )}
+
+          <button
+            onClick={onComplete}
+            disabled={processingStatus === 'processing'}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {processingStatus === 'completed' ? 'Upload Another Episode' : 'Back to Upload'}
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -7,6 +7,7 @@ import SeasonInfoBox from './components/SeasonInfoBox';
 import SeasonSelector from './components/SeasonSelector';
 import EpisodeGrid from './components/EpisodeGrid';
 import EpisodeBatchNav from './components/EpisodeBatchNav';
+import { CommentSection } from '../../components/comments';
 import seriesService from '../../services/series.service';
 
 const SeriesDetail = () => {
@@ -172,9 +173,9 @@ const SeriesDetail = () => {
       />
 
       <div className="max-w-[1700px] mx-auto px-6 py-8">
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-start"> {/* Thêm items-start để tránh stretch */}
           
-          <div className="w-[320px] flex-shrink-0">
+          <div className="w-[320px] flex-shrink-0 self-start"> {/* Thêm self-start */}
             <SeriesInfo 
               series={series} 
               selectedSeason={selectedSeason}
@@ -228,6 +229,17 @@ const SeriesDetail = () => {
                 </div>
               )}
             </div>
+
+            {/* Comment Section - aligned with episode grid */}
+            {selectedSeason && (
+              <div>
+                <CommentSection
+                  episodeId={null} // No specific episode - season-wide comments
+                  seriesId={series._id || series.id}
+                  seasonId={selectedSeason._id || selectedSeason.id}
+                />
+              </div>
+            )}
 
           </div>
         </div>

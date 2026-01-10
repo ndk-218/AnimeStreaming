@@ -78,32 +78,11 @@ const useAuthStore = create(
       },
 
       /**
-       * Check if user is premium
-       */
-      isPremium: () => {
-        const { user } = get();
-        if (!user || !user.isPremium) return false;
-        
-        // Check if premium expired
-        if (user.premiumExpiry) {
-          const expiryDate = new Date(user.premiumExpiry);
-          const now = new Date();
-          return now < expiryDate;
-        }
-        
-        return false;
-      },
-
-      /**
-       * Get user tier (anonymous, regular, premium)
+       * Get user tier (anonymous or registered)
        */
       getUserTier: () => {
-        const { isAuthenticated, user } = get();
-        const isPremium = get().isPremium();
-        
-        if (!isAuthenticated) return 'anonymous';
-        if (isPremium) return 'premium';
-        return 'regular';
+        const { isAuthenticated } = get();
+        return isAuthenticated ? 'registered' : 'anonymous';
       },
 
       /**
@@ -111,17 +90,8 @@ const useAuthStore = create(
        */
       getMaxQuality: () => {
         const tier = get().getUserTier();
-        
-        switch (tier) {
-          case 'anonymous':
-            return '480p';
-          case 'regular':
-            return '720p';
-          case 'premium':
-            return '1080p';
-          default:
-            return '480p';
-        }
+        // Anonymous: 720p, Registered: 1080p
+        return tier === 'registered' ? '1080p' : '720p';
       }
     }),
     {
