@@ -1,8 +1,10 @@
 import axios from 'axios'
 
 // API Base Configuration
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: `${API_BASE_URL}/api`,
   timeout: 30000, // 30 seconds for video uploads
   headers: {
     'Content-Type': 'application/json',
@@ -58,7 +60,7 @@ api.interceptors.response.use(
             
             // Call refresh token endpoint
             const response = await axios.post(
-              'http://localhost:5000/api/users/auth/refresh-token',
+              `${API_BASE_URL}/api/users/auth/refresh-token`,
               { refreshToken }
             );
 

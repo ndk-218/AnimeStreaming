@@ -275,7 +275,7 @@ function NotificationCard({ notification, type, onMarkAsRead, onDelete, onCancel
         <div className="flex-shrink-0">
           {notification.image ? (
             <img
-              src={`http://localhost:5000/${notification.image}`}
+              src={`${import.meta.env.VITE_API_URL}/${notification.image}`}
               alt={notification.seriesName}
               className="w-20 h-28 object-cover rounded-lg"
               onError={(e) => {

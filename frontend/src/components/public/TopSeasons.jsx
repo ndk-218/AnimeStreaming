@@ -13,7 +13,7 @@ const TopSeasons = () => {
   const fetchTopSeasons = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/content/top-seasons?limit=4');
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/content/top-seasons?limit=4`);
       const data = await response.json();
       
       if (data.success) {
@@ -22,12 +22,12 @@ const TopSeasons = () => {
           ...season,
           posterImage: season.posterImage?.startsWith('http') 
             ? season.posterImage 
-            : `http://localhost:5000/${season.posterImage}`,
+            : `${import.meta.env.VITE_API_URL}/${season.posterImage}`,
           seriesId: season.seriesId ? {
             ...season.seriesId,
             posterImage: season.seriesId.posterImage?.startsWith('http')
               ? season.seriesId.posterImage
-              : `http://localhost:5000/${season.seriesId.posterImage}`
+              : `${import.meta.env.VITE_API_URL}/${season.seriesId.posterImage}`
           } : null
         }));
         setSeasons(processedData);

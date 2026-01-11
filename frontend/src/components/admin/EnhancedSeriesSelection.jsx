@@ -294,7 +294,7 @@ function EnhancedSeriesSelection({ uploadData, setUploadData, onNext, setError, 
                     <div className="w-24 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
                       {series.bannerImage ? (
                         <img
-                          src={`http://localhost:5000/${series.bannerImage}`}
+                          src={`${import.meta.env.VITE_API_URL}/${series.bannerImage}`}
                           alt={series.title}
                           className="w-full h-full object-cover"
                         />

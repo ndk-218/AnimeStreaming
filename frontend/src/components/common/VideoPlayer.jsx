@@ -176,18 +176,18 @@ const VideoPlayer = ({ hlsPath, qualities, subtitles = [], episodeId, autoPlay =
     if (currentQuality !== 'auto') {
       const qualityFile = qualities.find(q => q.quality === currentQuality)?.file;
       if (qualityFile) {
-        return `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/${qualityFile}`;
+        return `${import.meta.env.VITE_API_URL}/${qualityFile}`;
       }
     }
 
     // For auto, use max allowed quality
     const targetQuality = qualities.find(q => q.quality === maxQuality);
     if (targetQuality) {
-      return `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/${targetQuality.file}`;
+      return `${import.meta.env.VITE_API_URL}/${targetQuality.file}`;
     }
 
     // Fallback to master playlist
-    return `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/${hlsPath}`;
+    return `${import.meta.env.VITE_API_URL}/${hlsPath}`;
   };
 
   // Effect: Setup HLS player with quality restrictions

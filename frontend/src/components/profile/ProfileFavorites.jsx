@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Heart, Trash2 } from 'lucide-react';
 import favoritesService from '../../services/favoritesService';
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = import.meta.env.VITE_API_URL;
 
 const ProfileFavorites = () => {
   const [favorites, setFavorites] = useState([]);

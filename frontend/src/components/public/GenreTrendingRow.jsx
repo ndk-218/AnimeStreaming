@@ -62,7 +62,7 @@ const GenreTrendingRow = ({ genreName, seasons }) => {
                       <img
                         src={season.posterImage?.startsWith('http') 
                           ? season.posterImage 
-                          : `http://localhost:5000/${season.posterImage}`}
+                          : `${import.meta.env.VITE_API_URL}/${season.posterImage}`}
                         alt={season.title}
                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                         loading={index < 6 ? 'eager' : 'lazy'}

@@ -8,7 +8,7 @@ const SeriesInfo = ({ series, selectedSeason }) => {
       <div className="flex justify-center mb-6">
         {selectedSeason?.posterImage ? (
           <img
-            src={`http://localhost:5000/${selectedSeason.posterImage}`}
+            src={`${import.meta.env.VITE_API_URL}/${selectedSeason.posterImage}`}
             alt={selectedSeason.title}
             className="w-[230px] rounded-lg shadow-lg"
             onError={(e) => {

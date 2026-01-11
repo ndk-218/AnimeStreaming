@@ -45,7 +45,7 @@ const RecentEpisodesSlider = () => {
   const fetchRecentEpisodes = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/episodes/recent?limit=20');
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/episodes/recent?limit=20`);
       const data = await response.json();
       
       if (data.success && data.data.length > 0) {
@@ -53,18 +53,18 @@ const RecentEpisodesSlider = () => {
           ...episode,
           thumbnail: episode.thumbnail?.startsWith('http') 
             ? episode.thumbnail 
-            : `http://localhost:5000/${episode.thumbnail}`,
+            : `${import.meta.env.VITE_API_URL}/${episode.thumbnail}`,
           series: episode.seriesId ? {
             ...episode.seriesId,
             posterImage: episode.seriesId.posterImage?.startsWith('http')
               ? episode.seriesId.posterImage
-              : `http://localhost:5000/${episode.seriesId.posterImage}`
+              : `${import.meta.env.VITE_API_URL}/${episode.seriesId.posterImage}`
           } : null,
           season: episode.seasonId ? {
             ...episode.seasonId,
             posterImage: episode.seasonId.posterImage?.startsWith('http')
               ? episode.seasonId.posterImage
-              : `http://localhost:5000/${episode.seasonId.posterImage}`
+              : `${import.meta.env.VITE_API_URL}/${episode.seasonId.posterImage}`
           } : null
         }));
         

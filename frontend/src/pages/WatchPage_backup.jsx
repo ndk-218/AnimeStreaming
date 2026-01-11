@@ -39,7 +39,7 @@ const WatchPage = () => {
         setLoading(true);
         setError(null);
 
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const apiUrl = import.meta.env.VITE_API_URL || '${import.meta.env.VITE_API_URL}';
         const response = await axios.get(`${apiUrl}/api/episodes/${episodeId}/playback`);
 
         if (response.data.success) {
@@ -224,7 +224,7 @@ const WatchPage = () => {
                 {season.posterImage && (
                   <div className="mb-4">
                     <img
-                      src={`http://localhost:5000/${season.posterImage}`}
+                      src={`${import.meta.env.VITE_API_URL}/${season.posterImage}`}
                       alt={series.title}
                       className="w-full rounded-lg shadow-lg"
                       onError={(e) => {

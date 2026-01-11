@@ -280,7 +280,7 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
           <div className="w-32 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
             {uploadData.series?.bannerImage ? (
               <img
-                src={`http://localhost:5000/${uploadData.series.bannerImage}`}
+                src={`${import.meta.env.VITE_API_URL}/${uploadData.series.bannerImage}`}
                 alt={uploadData.series.title}
                 className="w-full h-full object-cover"
               />

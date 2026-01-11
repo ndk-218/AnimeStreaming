@@ -16,7 +16,7 @@ const HeroSlider = () => {
   const fetchFeaturedAnime = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/seasons/recent?limit=5');
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/seasons/recent?limit=5`);
       const data = await response.json();
       
       if (data.success && data.data.length > 0) {
@@ -25,15 +25,15 @@ const HeroSlider = () => {
           ...season,
           posterImage: season.posterImage?.startsWith('http') 
             ? season.posterImage 
-            : `http://localhost:5000/${season.posterImage}`,
+            : `${import.meta.env.VITE_API_URL}/${season.posterImage}`,
           series: season.seriesId ? {
             ...season.seriesId,
             bannerImage: season.seriesId.bannerImage?.startsWith('http')
               ? season.seriesId.bannerImage
-              : `http://localhost:5000/${season.seriesId.bannerImage}`,
+              : `${import.meta.env.VITE_API_URL}/${season.seriesId.bannerImage}`,
             posterImage: season.seriesId.posterImage?.startsWith('http')
               ? season.seriesId.posterImage
-              : `http://localhost:5000/${season.seriesId.posterImage}`
+              : `${import.meta.env.VITE_API_URL}/${season.seriesId.posterImage}`
           } : null
         }));
         
@@ -71,7 +71,7 @@ const HeroSlider = () => {
 
     try {
       const episodesResponse = await fetch(
-        `http://localhost:5000/api/seasons/${anime._id}/episodes?page=1&limit=1&sort=desc`
+        `${import.meta.env.VITE_API_URL}/api/seasons/${anime._id}/episodes?page=1&limit=1&sort=desc`
       );
       const episodesData = await episodesResponse.json();
 

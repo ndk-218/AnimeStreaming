@@ -7,7 +7,7 @@ const SeriesBanner = ({ bannerImage, title }) => {
       <div className="absolute inset-0">
         {bannerImage ? (
           <img
-            src={`http://localhost:5000/${bannerImage}`}
+            src={`${import.meta.env.VITE_API_URL}/${bannerImage}`}
             alt={title}
             className="w-full h-full object-cover object-center"
             onError={(e) => {

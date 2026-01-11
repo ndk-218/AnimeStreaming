@@ -211,7 +211,7 @@ function EditSeriesModal({ series, isOpen, onClose, onSuccess }) {
                   {series?.bannerImage && !bannerFile && (
                     <div className="w-32 h-18 rounded-lg overflow-hidden border border-gray-300">
                       <img 
-                        src={`http://localhost:5000/${series.bannerImage}`}
+                        src={`${import.meta.env.VITE_API_URL}/${series.bannerImage}`}
                         alt="Current banner"
                         className="w-full h-full object-cover"
                       />

@@ -355,7 +355,7 @@ const ProfileNotifications = () => {
                     {/* Poster */}
                     {notification.seasonId?.posterImage ? (
                       <img
-                        src={`http://localhost:5000/${notification.seasonId.posterImage}`}
+                        src={`${import.meta.env.VITE_API_URL}/${notification.seasonId.posterImage}`}
                         alt={notification.seriesId?.title || 'Anime'}
                         className="w-16 h-20 object-cover rounded-lg flex-shrink-0"
                         onError={(e) => {

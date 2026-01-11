@@ -73,7 +73,7 @@ const SeasonGrid = ({ seasons, loading }) => {
           <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-gray-200 shadow-md group-hover:shadow-xl transition-shadow">
             {season.posterImage ? (
               <img
-                src={`http://localhost:5000/${season.posterImage}`}
+                src={`${import.meta.env.VITE_API_URL}/${season.posterImage}`}
                 alt={season.series.title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 onError={(e) => {

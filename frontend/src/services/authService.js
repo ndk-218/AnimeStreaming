@@ -5,7 +5,8 @@ import axios from 'axios';
  * Service để gọi các API endpoints cho user authentication
  */
 
-const API_URL = 'http://localhost:5000/api/users/auth';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const API_URL = `${API_BASE_URL}/api/users/auth`;
 
 // Create axios instance
 const authAPI = axios.create({

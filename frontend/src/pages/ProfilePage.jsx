@@ -5,7 +5,7 @@ import profileService from '../services/profileService';
 import authService from '../services/authService';
 import Header from '../components/public/Header';
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = import.meta.env.VITE_API_URL;
 
 const ProfilePage = () => {
   const navigate = useNavigate();

@@ -241,7 +241,7 @@ const NotificationPanel = ({ onClose, onCountUpdate }) => {
                     <div className="flex gap-3 ml-2">
                       {notification.seasonId?.posterImage ? (
                         <img
-                          src={`http://localhost:5000/${notification.seasonId.posterImage}`}
+                          src={`${import.meta.env.VITE_API_URL}/${notification.seasonId.posterImage}`}
                           alt={seriesTitle}
                           className="w-12 h-16 object-cover rounded flex-shrink-0"
                           onError={(e) => { e.target.src = 'https://via.placeholder.com/48x64?text=No+Image'; }}
@@ -301,7 +301,7 @@ const NotificationPanel = ({ onClose, onCountUpdate }) => {
                     <div className="flex gap-3 ml-2">
                       {notification.seasonId?.posterImage ? (
                         <img
-                          src={`http://localhost:5000/${notification.seasonId.posterImage}`}
+                          src={`${import.meta.env.VITE_API_URL}/${notification.seasonId.posterImage}`}
                           alt={seriesTitle}
                           className="w-12 h-16 object-cover rounded flex-shrink-0"
                           onError={(e) => { e.target.src = 'https://via.placeholder.com/48x64?text=No+Image'; }}

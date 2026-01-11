@@ -282,7 +282,7 @@ function EditSeasonModal({ season, isOpen, onClose, onSuccess }) {
                 {season?.posterImage && !posterFile && (
                   <div className="w-24 h-32 rounded-lg overflow-hidden border border-gray-300">
                     <img 
-                      src={`http://localhost:5000/${season.posterImage}`}
+                      src={`${import.meta.env.VITE_API_URL}/${season.posterImage}`}
                       alt="Current poster"
                       className="w-full h-full object-cover"
                     />

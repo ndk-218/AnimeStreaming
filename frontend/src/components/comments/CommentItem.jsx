@@ -130,13 +130,13 @@ const CommentItem = ({
       }
       // Nếu bắt đầu với /uploads hoặc /assets thì thêm base URL
       if (comment.userId.avatar.startsWith('/uploads') || comment.userId.avatar.startsWith('/assets')) {
-        return `http://localhost:5000${comment.userId.avatar}`;
+        return `${import.meta.env.VITE_API_URL}${comment.userId.avatar}`;
       }
       // Nếu không có / ở đầu thì thêm /
       if (!comment.userId.avatar.startsWith('/')) {
-        return `http://localhost:5000/${comment.userId.avatar}`;
+        return `${import.meta.env.VITE_API_URL}/${comment.userId.avatar}`;
       }
-      return `http://localhost:5000${comment.userId.avatar}`;
+      return `${import.meta.env.VITE_API_URL}${comment.userId.avatar}`;
     }
     // Default avatar với tên hiển thị
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=34D0F4&color=fff`;

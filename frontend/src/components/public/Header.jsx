@@ -79,7 +79,7 @@ const Header = () => {
 
   const fetchGenres = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/content/genres');
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/content/genres`);
       const data = await response.json();
       if (data.success) {
         setGenres(data.data);
@@ -92,7 +92,7 @@ const Header = () => {
   const performSearch = async (query) => {
     try {
       const response = await fetch(
-        `http://localhost:5000/api/series/search?q=${encodeURIComponent(query)}&limit=10`
+        `${import.meta.env.VITE_API_URL}/api/series/search?q=${encodeURIComponent(query)}&limit=10`
       );
       const data = await response.json();
       
@@ -214,7 +214,7 @@ const Header = () => {
                           >
                             {series.latestSeason?.posterImage && (
                               <img
-                                src={`http://localhost:5000/${series.latestSeason.posterImage}`}
+                                src={`${import.meta.env.VITE_API_URL}/${series.latestSeason.posterImage}`}
                                 alt={series.title}
                                 className="w-12 h-16 object-cover rounded"
                                 onError={(e) => {
@@ -367,7 +367,7 @@ const Header = () => {
                           user.avatar?.startsWith('/assets') 
                             ? user.avatar 
                             : user.avatar 
-                              ? `http://localhost:5000${user.avatar}` 
+                              ? `${import.meta.env.VITE_API_URL + user.avatar}` 
                               : 'https://via.placeholder.com/40'
                         }
                         alt={user.displayName}

@@ -13,7 +13,7 @@ const TopGenres = () => {
   const fetchTopGenres = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/content/top-genres?limit=4');
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/content/top-genres?limit=4`);
       const data = await response.json();
       
       if (data.success) {
