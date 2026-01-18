@@ -2,6 +2,7 @@
 const SeasonService = require('../services/season.service');
 const ImageService = require('../services/image.service');
 const Season = require('../models/Season');
+const adminNotificationService = require('../services/adminNotification.service');
 
 /**
  * ===== SEASONS CONTROLLER - JAVASCRIPT VERSION =====
@@ -23,7 +24,8 @@ const createSeason = async (req, res) => {
       description, 
       status,
       studios,  // Array of studio names
-      genres    // Array of genre names
+      genres,   // Array of genre names
+      isUpscaled  // Boolean - episodes sẽ được upscale
     } = req.body;
 
     // Validate dữ liệu đầu vào
@@ -80,7 +82,8 @@ const createSeason = async (req, res) => {
       description: description || '',
       status: status || 'upcoming',
       studios: studios,  // Pass studios array
-      genres: genres     // Pass genres array
+      genres: genres,    // Pass genres array
+      isUpscaled: isUpscaled === true || isUpscaled === 'true'  // Convert to boolean
     };
 
     const season = await SeasonService.createSeason(seasonData);
@@ -90,6 +93,22 @@ const createSeason = async (req, res) => {
       data: season,
       message: `${seasonType.toUpperCase()} created successfully`
     });
+    
+    // Create admin notification
+    try {
+      await adminNotificationService.createActivityNotification({
+        adminId: req.admin._id,
+        adminName: req.admin.displayName,
+        action: 'updated',
+        entityType: 'season',
+        entityId: season._id,
+        seriesName: season.seriesId?.title || 'Unknown Series',
+        seasonTitle: season.title
+        // NOTE: No image - populated from season.posterImage
+      });
+    } catch (notifError) {
+      console.error('Failed to create notification:', notifError);
+    }
 
   } catch (error) {
     console.error('❌ Create season error:', error.message);
@@ -186,6 +205,22 @@ const updateSeason = async (req, res) => {
       data: season,
       message: 'Season updated successfully'
     });
+    
+    // Create admin notification
+    try {
+      await adminNotificationService.createActivityNotification({
+        adminId: req.admin._id,
+        adminName: req.admin.displayName,
+        action: 'updated',
+        entityType: 'season',
+        entityId: season._id,
+        seriesName: season.seriesId?.title || 'Unknown Series',
+        seasonTitle: season.title
+        // NOTE: No image - populated from season.posterImage
+      });
+    } catch (notifError) {
+      console.error('Failed to create notification:', notifError);
+    }
 
   } catch (error) {
     console.error('❌ Update season error:', error.message);
@@ -203,6 +238,16 @@ const updateSeason = async (req, res) => {
  */
 const deleteSeason = async (req, res) => {
   try {
+    // Get season info before deleting
+    const season = await Season.findById(req.params.id).populate('seriesId');
+    
+    if (!season) {
+      return res.status(404).json({
+        success: false,
+        error: 'Season not found'
+      });
+    }
+    
     const success = await SeasonService.deleteSeason(req.params.id);
 
     if (!success) {
@@ -216,6 +261,22 @@ const deleteSeason = async (req, res) => {
       success: true,
       message: 'Season deleted successfully'
     });
+    
+    // Create admin notification (after successful delete)
+    try {
+      await adminNotificationService.createActivityNotification({
+        adminId: req.admin._id,
+        adminName: req.admin.displayName,
+        action: 'deleted',
+        entityType: 'season',
+        entityId: null, // Already deleted
+        seriesName: season.seriesId?.title || 'Unknown Series',
+        seasonTitle: season.title
+        // NOTE: No image for deleted items
+      });
+    } catch (notifError) {
+      console.error('Failed to create notification:', notifError);
+    }
 
   } catch (error) {
     console.error('❌ Delete season error:', error.message);

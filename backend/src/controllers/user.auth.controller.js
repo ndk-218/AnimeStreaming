@@ -318,6 +318,104 @@ const getCurrentUser = async (req, res) => {
   }
 };
 
+/**
+ * ===== OTP-BASED PASSWORD RESET CONTROLLERS =====
+ */
+
+/**
+ * Request OTP for password reset
+ * POST /api/users/auth/request-otp
+ */
+const requestOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required'
+      });
+    }
+
+    const result = await userAuthService.requestOTP(email);
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ Request OTP controller error:', error.message);
+    
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Verify OTP code
+ * POST /api/users/auth/verify-otp
+ */
+const verifyOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email and OTP are required'
+      });
+    }
+
+    const result = await userAuthService.verifyOTP(email, otp);
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ Verify OTP controller error:', error.message);
+    
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Reset password with verified OTP
+ * POST /api/users/auth/reset-password-otp
+ */
+const resetPasswordWithOTP = async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email and new password are required'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 6 characters'
+      });
+    }
+
+    const result = await userAuthService.resetPasswordWithOTP(email, newPassword);
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ Reset password with OTP controller error:', error.message);
+    
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   register,
   verifyEmail,
@@ -328,5 +426,9 @@ module.exports = {
   forgotPassword,
   resetPassword,
   changePassword,
-  getCurrentUser
+  getCurrentUser,
+  // OTP-based password reset
+  requestOTP,
+  verifyOTP,
+  resetPasswordWithOTP
 };

@@ -20,6 +20,7 @@ const generateAccessToken = (user) => {
     email: user.email,
     username: user.username,
     isPremium: user.isPremium || false,
+    role: 'user', // Always 'user' for user tokens
     type: 'access'
   };
 
@@ -41,6 +42,7 @@ const generateAccessToken = (user) => {
 const generateRefreshToken = (user) => {
   const payload = {
     userId: user._id.toString(),
+    role: 'user', // Always 'user' for user tokens
     type: 'refresh'
   };
 

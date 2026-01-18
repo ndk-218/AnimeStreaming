@@ -23,7 +23,8 @@ const {
 
 const {
   getProcessingStatus,
-  getAllProcessingJobs
+  getAllProcessingJobs,
+  cancelProcessing
 } = require('../controllers/processing.controller');
 
 // ✅ THÊM: Import playback controller
@@ -86,6 +87,14 @@ router.get('/admin/:id/processing-status',
   catchAsync(getProcessingStatus)
 );
 
+// Cancel processing for episode (Admin only)
+// POST /api/episodes/admin/507f1f77bcf86cd799439011/cancel-processing
+router.post('/admin/:id/cancel-processing',
+  adminAuth,
+  validateMongoId,
+  catchAsync(cancelProcessing)
+);
+
 // Update processing status (Internal use by video processing service)
 // PUT /api/episodes/admin/507f1f77bcf86cd799439011/processing
 // Body: { processingStatus, hlsPath, qualities, duration, thumbnail, subtitles }
@@ -95,23 +104,18 @@ router.put('/admin/:id/processing',
   catchAsync(updateProcessingStatus)
 );
 
-// Update episode metadata (Admin only)
+// Update episode metadata OR replace video/subtitle (Admin only)
 // PUT /api/episodes/admin/507f1f77bcf86cd799439011
+// Supports:
+// - Metadata update: { title, description, episodeNumber }
+// - Video replacement: multipart with videoFile
+// - Subtitle update: multipart with subtitleFiles
 router.put('/admin/:id', 
   adminAuth,
-  validateUpdateEpisode,
-  catchAsync(updateEpisode)
-);
-
-// Replace video file for existing episode (Admin only)
-// PUT /api/episodes/admin/507f1f77bcf86cd799439011/video (multipart/form-data)
-// Body: { videoFile }
-router.put('/admin/:id/video',
-  adminAuth,
-  uploadEpisode,
+  uploadEpisode, // Handle file uploads if present
   handleUploadError,
   validateMongoId,
-  catchAsync(replaceEpisodeVideo)
+  catchAsync(replaceEpisodeVideo) // This handles both cases
 );
 
 // Delete episode (Admin only)
@@ -178,10 +182,13 @@ router.get('/season/:seasonId',
   catchAsync(getEpisodesBySeason)
 );
 
-// ✅ THÊM: Playback endpoint (anonymous viewing)
+// ✅ Playback endpoint with quality filtering
 // GET /api/episodes/507f1f77bcf86cd799439011/playback
-// Returns: HLS path, qualities, episode metadata for video player
+// Returns: HLS path, qualities (filtered by login status), episode metadata
+// Anonymous users: 480p, 720p only
+// Logged in users: All qualities (480p, 720p, 1080p, Upscaled)
 router.get('/:episodeId/playback', 
+  require('../middleware/userAuth').optionalUserAuth,
   catchAsync(playbackController.getPlaybackInfo)
 );
 

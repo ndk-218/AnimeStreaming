@@ -1,6 +1,8 @@
 const seriesService = require('../services/series.service');
 const ImageService = require('../services/image.service');
 const Series = require('../models/Series');
+const adminNotificationService = require('../services/adminNotification.service');
+
 class SeriesController {
   // GET /api/series - Public endpoint for browsing series
   async getSeries(req, res) {
@@ -94,21 +96,83 @@ class SeriesController {
 
       // Validate required fields
       if (!seriesData.title || !seriesData.releaseYear) {
+        // Cleanup uploaded file if validation fails
+        if (req.file?.path) {
+          await ImageService.deleteImage(req.file.path);
+        }
         return res.status(400).json({
           success: false,
           error: 'Title and release year are required'
         });
       }
 
+      // Create series first
       const result = await seriesService.createSeries(seriesData);
       
       if (!result.success) {
+        // Cleanup uploaded file if series creation fails
+        if (req.file?.path) {
+          await ImageService.deleteImage(req.file.path);
+        }
         return res.status(400).json(result);
       }
 
+      // Process banner image if uploaded
+      if (req.file) {
+        try {
+          console.log(`📤 Processing banner for new series: ${result.data._id}`);
+          console.log(`   File: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)}MB)`);
+          
+          // Validate image file
+          const validation = ImageService.validateImageFile(req.file, 10);
+          if (!validation.valid) {
+            await ImageService.deleteImage(req.file.path);
+            console.warn(`⚠️ Banner validation failed: ${validation.error}`);
+          } else {
+            // Process and save banner image
+            const bannerPath = await ImageService.processSeriesBanner(
+              req.file.path,
+              result.data._id
+            );
+            
+            // Update series with banner path
+            const updatedSeries = await Series.findById(result.data._id);
+            updatedSeries.bannerImage = bannerPath;
+            await updatedSeries.save();
+            
+            result.data.bannerImage = bannerPath;
+            console.log(`✅ Banner uploaded successfully: ${bannerPath}`);
+          }
+        } catch (bannerError) {
+          console.error('❌ Banner upload error (non-fatal):', bannerError.message);
+          // Continue even if banner upload fails
+        }
+      }
+
       res.status(201).json(result);
+      
+      // Create admin notification
+      try {
+        await adminNotificationService.createActivityNotification({
+          adminId: req.admin._id,
+          adminName: req.admin.displayName,
+          action: 'updated',
+          entityType: 'series',
+          entityId: result.data._id,
+          seriesName: result.data.title
+          // NOTE: No image - populated from series.bannerImage/posterImage
+        });
+      } catch (notifError) {
+        console.error('Failed to create notification:', notifError);
+      }
     } catch (error) {
       console.error('Create series error:', error);
+      
+      // Cleanup uploaded file on error
+      if (req.file?.path) {
+        await ImageService.deleteImage(req.file.path);
+      }
+      
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to create series'
@@ -140,6 +204,21 @@ class SeriesController {
       }
 
       res.json(result);
+      
+      // Create admin notification
+      try {
+        await adminNotificationService.createActivityNotification({
+          adminId: req.admin._id,
+          adminName: req.admin.displayName,
+          action: 'updated',
+          entityType: 'series',
+          entityId: result.data._id,
+          seriesName: result.data.title
+          // NOTE: No image - populated from series.bannerImage/posterImage
+        });
+      } catch (notifError) {
+        console.error('Failed to create notification:', notifError);
+      }
     } catch (error) {
       console.error('Update series error:', error);
       res.status(500).json({
@@ -153,6 +232,24 @@ class SeriesController {
   async deleteSeries(req, res) {
     try {
       const { id } = req.params;
+      // Create admin notification (trước khi xóa để lấy thông tin)
+      try {
+        const series = await Series.findById(id);
+        if (series) {
+          await adminNotificationService.createActivityNotification({
+            adminId: req.admin._id,
+            adminName: req.admin.displayName,
+            action: 'deleted',
+            entityType: 'series',
+            entityId: null, // Đã xóa rồi
+            seriesName: series.title
+            // NOTE: No image for deleted items
+          });
+        }
+      } catch (notifError) {
+        console.error('Failed to create notification:', notifError);
+      }
+      
       const result = await seriesService.deleteSeries(id);
       
       if (!result.success) {

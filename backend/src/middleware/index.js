@@ -14,6 +14,14 @@ const {
   verifyToken
 } = require('./auth');
 
+// User authentication middleware
+const {
+  userAuth,
+  optionalUserAuth,
+  requirePremium,
+  checkVideoQualityAccess
+} = require('./userAuth');
+
 // Upload middleware
 const {
   uploadVideo,
@@ -73,7 +81,11 @@ const auth = {
   optionalAuth,
   requirePermission,
   generateToken,
-  verifyToken
+  verifyToken,
+  userAuth,
+  optionalUserAuth,
+  requirePremium,
+  checkVideoQualityAccess
 };
 
 // File uploads
@@ -212,6 +224,10 @@ module.exports = {
   requirePermission,
   generateToken,
   verifyToken,
+  userAuth,
+  optionalUserAuth,
+  requirePremium,
+  checkVideoQualityAccess,
   
   uploadVideo,
   uploadSubtitles,

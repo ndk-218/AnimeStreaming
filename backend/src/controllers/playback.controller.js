@@ -7,6 +7,7 @@ class PlaybackController {
   /**
    * GET /api/episodes/:episodeId/playback
    * Lấy thông tin episode để playback
+   * Optional authentication - qualities filtered based on login status
    */
   async getPlaybackInfo(req, res) {
     try {
@@ -20,8 +21,11 @@ class PlaybackController {
         });
       }
 
-      // Lấy playback info từ service
-      const playbackData = await playbackService.getEpisodePlaybackInfo(episodeId);
+      // Get user from optionalUserAuth middleware (can be undefined)
+      const user = req.user || null;
+
+      // Lấy playback info từ service với user info
+      const playbackData = await playbackService.getEpisodePlaybackInfo(episodeId, user);
 
       return res.status(200).json({
         success: true,

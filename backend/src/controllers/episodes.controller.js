@@ -2,6 +2,7 @@
 const EpisodeService = require('../services/episode.service');
 const path = require('path');
 const fs = require('fs-extra');
+const adminNotificationService = require('../services/adminNotification.service');
 
 /**
  * ===== EPISODES CONTROLLER - JAVASCRIPT VERSION =====
@@ -49,7 +50,25 @@ const createEpisode = async (req, res) => {
     // Process subtitle files if any
     if (req.files && req.files.subtitleFiles && req.files.subtitleFiles.length > 0) {
       console.log(`📄 Processing ${req.files.subtitleFiles.length} subtitle file(s)`);
-      // TODO: Add subtitle processing logic here
+      
+      try {
+        const organizedSubtitles = await EpisodeService.organizeSubtitleFiles(
+          episode._id.toString(),
+          req.files.subtitleFiles
+        );
+        
+        // Update episode with subtitle info
+        if (organizedSubtitles.length > 0) {
+          const Episode = require('../models/Episode');
+          await Episode.findByIdAndUpdate(episode._id, {
+            subtitles: organizedSubtitles
+          });
+          console.log(`✅ Updated episode with ${organizedSubtitles.length} subtitle(s)`);
+        }
+      } catch (subtitleError) {
+        console.error('⚠️ Failed to process subtitles:', subtitleError.message);
+        // Don't throw - subtitle processing failure shouldn't break episode creation
+      }
     }
 
     // Add video to processing queue
@@ -86,6 +105,28 @@ const createEpisode = async (req, res) => {
       data: episode,
       message: 'Episode created successfully and queued for processing'
     });
+    
+    // Create upload notification
+    try {
+      const Season = require('../models/Season');
+      const Series = require('../models/Series');
+      
+      const season = await Season.findById(episode.seasonId);
+      const series = await Series.findById(episode.seriesId);
+      
+      await adminNotificationService.createUploadNotification({
+        adminId: req.admin._id,
+        adminName: req.admin.displayName,
+        episodeId: episode._id,
+        seriesName: series?.title || 'Unknown Series',
+        seasonTitle: season?.title || 'Unknown Season',
+        episodeTitle: `Tập ${episode.episodeNumber}`,
+        episodeNumber: episode.episodeNumber
+        // NOTE: No image - populated from season.posterImage
+      });
+    } catch (notifError) {
+      console.error('Failed to create upload notification:', notifError);
+    }
 
   } catch (error) {
     console.error('❌ Create episode error:', error.message);
@@ -325,6 +366,19 @@ const updateEpisode = async (req, res) => {
  */
 const deleteEpisode = async (req, res) => {
   try {
+    // Get episode info before deleting
+    const Episode = require('../models/Episode');
+    const episode = await Episode.findById(req.params.id)
+      .populate('seriesId')
+      .populate('seasonId');
+    
+    if (!episode) {
+      return res.status(404).json({
+        success: false,
+        error: 'Episode not found'
+      });
+    }
+    
     const success = await EpisodeService.deleteEpisode(req.params.id);
 
     if (!success) {
@@ -338,6 +392,24 @@ const deleteEpisode = async (req, res) => {
       success: true,
       message: 'Episode deleted successfully'
     });
+    
+    // Create admin notification (after successful delete)
+    try {
+      await adminNotificationService.createActivityNotification({
+        adminId: req.admin._id,
+        adminName: req.admin.displayName,
+        action: 'deleted',
+        entityType: 'episode',
+        entityId: null, // Already deleted
+        seriesName: episode.seriesId?.title || 'Unknown Series',
+        seasonTitle: episode.seasonId?.title || 'Unknown Season',
+        episodeTitle: episode.title,
+        episodeNumber: episode.episodeNumber
+        // NOTE: No image for deleted items
+      });
+    } catch (notifError) {
+      console.error('Failed to create notification:', notifError);
+    }
 
   } catch (error) {
     console.error('❌ Delete episode error:', error.message);
@@ -537,76 +609,177 @@ const updateProcessingStatus = async (req, res) => {
 };
 
 /**
- * Replace video file cho episode đã tồn tại
- * PUT /admin/episodes/:id/video
+ * Update episode - Handles:
+ * 1. Metadata update (title, description, episodeNumber)
+ * 2. Video replacement (videoFile)
+ * 3. Subtitle update (subtitleFiles)
+ * PUT /admin/episodes/:id
  */
 const replaceEpisodeVideo = async (req, res) => {
   try {
-    console.log('🔄 Replace video request for episode:', req.params.id);
+    console.log('🔄 Update episode request for episode:', req.params.id);
+    console.log('📄 Body data:', req.body);
     console.log('📁 Files received:', req.files);
 
-    // Kiểm tra file video được upload
-    if (!req.files || !req.files.videoFile || !req.files.videoFile[0]) {
+    const hasVideoFile = req.files && req.files.videoFile && req.files.videoFile[0];
+    const hasSubtitleFiles = req.files && req.files.subtitleFiles && req.files.subtitleFiles.length > 0;
+    const hasMetadataUpdate = req.body.title || req.body.description || req.body.episodeNumber;
+
+    const episodeId = req.params.id;
+    let responseMessage = [];
+
+    // CASE 1: Metadata update (title, description, episodeNumber)
+    if (hasMetadataUpdate && !hasVideoFile && !hasSubtitleFiles) {
+      console.log('✏️ Processing metadata update...');
+      
+      const episode = await EpisodeService.getEpisodeWithDetails(episodeId);
+      if (!episode) {
+        return res.status(404).json({
+          success: false,
+          error: 'Episode not found'
+        });
+      }
+
+      // Update allowed fields
+      const allowedFields = ['title', 'description', 'episodeNumber'];
+      const updateData = {};
+      
+      allowedFields.forEach(field => {
+        if (req.body[field] !== undefined) {
+          updateData[field] = field === 'episodeNumber' ? parseInt(req.body[field]) : req.body[field];
+        }
+      });
+
+      Object.assign(episode, updateData);
+      await episode.save();
+      
+      console.log('✅ Metadata updated successfully');
+      responseMessage.push('Metadata updated');
+    }
+
+    // CASE 2: Video file replacement
+    if (hasVideoFile) {
+      console.log('🎥 Processing video file replacement...');
+      const newVideoPath = req.files.videoFile[0].path;
+
+      // Replace video trong service
+      await EpisodeService.replaceEpisodeVideo(episodeId, newVideoPath);
+
+      // Add video to processing queue
+      console.log('📦 Attempting to add job to queue...');
+      
+      let addVideoProcessingJob;
+      try {
+        // Dynamic import cho ES Module
+        const queueModule = await import('../config/queue.js');
+        addVideoProcessingJob = queueModule.addVideoProcessingJob;
+        console.log('✅ Queue module loaded successfully');
+      } catch (importError) {
+        console.error('❌ Failed to import queue module:', importError.message);
+        throw new Error('Failed to initialize video processing queue');
+      }
+
+      // ✅ FIX: Dynamic detect file extension
+      const episodeDir = path.join(
+        process.cwd(),
+        'uploads',
+        'videos',
+        episodeId
+      );
+      
+      // Find original video file (could be .mp4, .mkv, .avi, etc.)
+      const files = await fs.readdir(episodeDir);
+      const originalFile = files.find(f => f.startsWith('original.'));
+      
+      if (!originalFile) {
+        throw new Error(`Original video file not found in ${episodeDir}`);
+      }
+      
+      const videoPath = path.join(episodeDir, originalFile);
+      console.log('🎥 Video path for processing:', videoPath);
+      console.log('   File extension:', path.extname(originalFile));
+      
+      await addVideoProcessingJob(episodeId, videoPath);
+      
+      console.log(`✅ Video replacement queued successfully!`);
+      responseMessage.push('Video replaced and queued for processing');
+    }
+
+    // CASE 3: Subtitle files update
+    if (hasSubtitleFiles) {
+      console.log(`📝 Processing ${req.files.subtitleFiles.length} subtitle file(s)...`);
+      
+      try {
+        const organizedSubtitles = await EpisodeService.organizeSubtitleFiles(
+          episodeId,
+          req.files.subtitleFiles
+        );
+        
+        console.log(`📋 Organized subtitles:`, JSON.stringify(organizedSubtitles, null, 2));
+        
+        // Update episode with subtitle info (replace existing)
+        if (organizedSubtitles.length > 0) {
+          const Episode = require('../models/Episode');
+          await Episode.findByIdAndUpdate(episodeId, {
+            subtitles: organizedSubtitles
+          });
+          console.log(`✅ Updated episode with ${organizedSubtitles.length} subtitle(s)`);
+          responseMessage.push(`${organizedSubtitles.length} subtitle(s) updated`);
+        } else {
+          console.warn('⚠️ No subtitles were organized - empty array returned');
+          responseMessage.push('Warning: No subtitles were processed');
+        }
+      } catch (subtitleError) {
+        console.error('⚠️ Failed to process subtitles:', subtitleError.message);
+        // Nếu chỉ có subtitle và lỗi -> throw error
+        if (!hasVideoFile && !hasMetadataUpdate) {
+          throw subtitleError;
+        }
+        // Nếu có video/metadata thì chỉ warning
+        responseMessage.push('Warning: Subtitle processing failed');
+      }
+    }
+
+    // Validate at least one operation
+    if (!hasVideoFile && !hasSubtitleFiles && !hasMetadataUpdate) {
       return res.status(400).json({
         success: false,
-        error: 'Video file is required'
+        error: 'At least one of the following is required: metadata update, video file, or subtitle file'
       });
     }
 
-    const episodeId = req.params.id;
-    const newVideoPath = req.files.videoFile[0].path;
-
-    // Replace video trong service
-    await EpisodeService.replaceEpisodeVideo(episodeId, newVideoPath);
-
-    // Add video to processing queue
-    console.log('📦 Attempting to add job to queue...');
-    
-    let addVideoProcessingJob;
-    try {
-      // Dynamic import cho ES Module
-      const queueModule = await import('../config/queue.js');
-      addVideoProcessingJob = queueModule.addVideoProcessingJob;
-      console.log('✅ Queue module loaded successfully');
-    } catch (importError) {
-      console.error('❌ Failed to import queue module:', importError.message);
-      throw new Error('Failed to initialize video processing queue');
-    }
-
-    // ✅ FIX: Dynamic detect file extension instead of hard-coding .mp4
-    const episodeDir = path.join(
-      process.cwd(),
-      'uploads',
-      'videos',
-      episodeId
-    );
-    
-    // Find original video file (could be .mp4, .mkv, .avi, etc.)
-    const files = await fs.readdir(episodeDir);
-    const originalFile = files.find(f => f.startsWith('original.'));
-    
-    if (!originalFile) {
-      throw new Error(`Original video file not found in ${episodeDir}`);
-    }
-    
-    const videoPath = path.join(episodeDir, originalFile);
-    console.log('🎥 Video path for processing:', videoPath);
-    console.log('   File extension:', path.extname(originalFile));
-    
-    const job = await addVideoProcessingJob(episodeId, videoPath);
-    
-    console.log(`✅ Job added to queue successfully!`);
-    console.log(`📺 Job ID: video-${episodeId}`);
-    console.log(`🔢 Queue job ID: ${job.id}`);
-
     res.json({
       success: true,
-      message: 'Episode video replaced successfully and queued for processing',
-      jobId: job.id
+      message: responseMessage.join(', ')
     });
+    
+    // Create upload notification only if video file was replaced
+    if (hasVideoFile) {
+      try {
+        const Episode = require('../models/Episode');
+        const episode = await Episode.findById(episodeId)
+          .populate('seasonId')
+          .populate('seriesId');
+        
+        if (episode) {
+          await adminNotificationService.createUploadNotification({
+            adminId: req.admin._id,
+            adminName: req.admin.displayName,
+            episodeId: episodeId,
+            seriesName: episode.seriesId?.title || 'Unknown Series',
+            seasonTitle: episode.seasonId?.title || 'Unknown Season',
+            episodeTitle: `Tập ${episode.episodeNumber}`,
+            episodeNumber: episode.episodeNumber
+            // NOTE: No image - populated from season.posterImage
+          });
+        }
+      } catch (notifError) {
+        console.error('Failed to create upload notification:', notifError);
+      }
+    }
 
   } catch (error) {
-    console.error('❌ Replace episode video error:', error.message);
+    console.error('❌ Update episode error:', error.message);
     console.error('❌ Stack trace:', error.stack);
     
     res.status(400).json({

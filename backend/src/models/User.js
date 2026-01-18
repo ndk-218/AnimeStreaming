@@ -47,7 +47,7 @@ const userSchema = new mongoose.Schema(
     // Account Status
     isEmailVerified: {
       type: Boolean,
-      default: false
+      default: true  // Changed: User không cần verify email khi đăng ký
     },
     isActive: {
       type: Boolean,

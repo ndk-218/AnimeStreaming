@@ -104,18 +104,6 @@ export default function AdminLogin({ onLoginSuccess }) {
             </button>
           </form>
           
-          <div className="mt-8 pt-6 border-t border-light-200">
-            <div className="text-center">
-              <div className="bg-light-50 rounded-lg p-4">
-                <p className="text-light-600 text-sm mb-2 font-medium">Development Credentials</p>
-                <div className="space-y-1 text-xs">
-                  <p className="text-light-500">Email: admin@animestreaming.com</p>
-                  <p className="text-light-500">Password: admin123456</p>
-                  <p className="text-primary-500 mt-2">Backend: localhost:5000</p>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

@@ -43,6 +43,16 @@ const adminAuth = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
+    // Check if token is admin token
+    if (decoded.role && decoded.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'User token cannot access admin resources.',
+        tokenRole: 'user',
+        shouldClearToken: true
+      });
+    }
+    
     // Find admin in database
     const admin = await Admin.findById(decoded.adminId).select('-password');
     
@@ -160,7 +170,8 @@ const generateToken = (admin) => {
   const payload = {
     adminId: admin._id.toString(),
     email: admin.email,
-    role: admin.role,
+    role: 'admin', // Always 'admin' for admin tokens
+    adminRole: admin.role, // 'admin' or 'super_admin'
     displayName: admin.displayName
   };
 

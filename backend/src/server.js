@@ -44,6 +44,8 @@ for (const envVar of requiredEnvVars) {
 const app = express();
 const server = createServer(app);
 
+app.set("trust proxy", true);
+
 // Create Socket.IO instance
 const io = new SocketIOServer(server, {
   cors: {
@@ -72,16 +74,31 @@ app.use(helmet({
 }));
 
 // CORS
+const allowedOrigins = [
+  "https://golden-anime.online",
+  "https://www.golden-anime.online",
+  "http://localhost:5173"
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  origin: (origin, callback) => {
+    // Cho phép curl / postman / server-to-server
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
+    'Content-Type',
+    'Authorization',
     'Range',
-    'X-Request-ID',  // Allow custom request ID header
-    'x-request-id'   // Allow lowercase version
+    'X-Request-ID',
+    'x-request-id'
   ]
 }));
 

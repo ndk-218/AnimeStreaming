@@ -59,6 +59,12 @@ const seasonSchema = new mongoose.Schema({
     default: 0
   },
   
+  // Upscale flag - determines if episodes should be upscaled
+  isUpscaled: {
+    type: Boolean,
+    default: false
+  },
+  
   // Images - will be implemented in Priority 3
   posterImage: String,
   thumbnailImage: String,

@@ -11,6 +11,10 @@ const userAuthRoutes = require('./user.auth.routes');
 const userProfileRoutes = require('./user.profile.routes');
 const userFavoritesRoutes = require('./user.favorites.routes');
 const userWatchHistoryRoutes = require('./user.watchHistory.routes');
+const chatRoutes = require('./chat.routes');
+const commentRoutes = require('./comment.routes');
+const notificationRoutes = require('./notification.routes');
+const adminNotificationRoutes = require('./adminNotification.routes');
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -29,6 +33,9 @@ router.get('/health', (req, res) => {
 // CRITICAL: Admin routes MUST be mounted FIRST to prevent
 // /api/series from catching /api/admin/series requests
 router.use('/admin', adminRoutes);
+
+// Admin Notifications: GET /api/admin/notifications/activity, /upload, etc.
+router.use('/admin/notifications', adminNotificationRoutes);
 
 // ============================================
 // USER AUTHENTICATION ROUTES
@@ -53,6 +60,24 @@ router.use('/user/favorites', userFavoritesRoutes);
 // ============================================
 // Watch History: POST /api/user/watch-history/update, GET /api/user/watch-history
 router.use('/user/watch-history', userWatchHistoryRoutes);
+
+// ============================================
+// CHAT ROUTES (Protected)
+// ============================================
+// Chat: GET/POST/DELETE /api/chat/*
+router.use('/chat', chatRoutes);
+
+// ============================================
+// COMMENT ROUTES (Mixed: Public + Protected)
+// ============================================
+// Comments: GET /api/comments/episode/:episodeId, POST /api/comments, etc.
+router.use('/comments', commentRoutes);
+
+// ============================================
+// NOTIFICATION ROUTES (Protected)
+// ============================================
+// Notifications: GET /api/notifications, PATCH /api/notifications/:id/read, etc.
+router.use('/notifications', notificationRoutes);
 
 // ============================================
 // PUBLIC ROUTES (Anonymous Access)

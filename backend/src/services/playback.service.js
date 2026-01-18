@@ -9,9 +9,10 @@ class PlaybackService {
   /**
    * Lấy thông tin episode để playback (HLS path, qualities, metadata)
    * @param {string} episodeId - MongoDB ObjectId của episode
+   * @param {Object} user - User object (null if anonymous)
    * @returns {Promise<Object>} - Episode playback data
    */
-  async getEpisodePlaybackInfo(episodeId) {
+  async getEpisodePlaybackInfo(episodeId, user = null) {
     try {
       // 1. Tìm episode và populate series + season info
       const episode = await Episode.findById(episodeId)
@@ -36,7 +37,17 @@ class PlaybackService {
       // View counting is now handled by frontend after 10 seconds of watching
       // Frontend will call POST /api/episodes/:id/view
 
-      // 4. Format response data
+      // 4. ALWAYS return all qualities, let frontend handle access control
+      // NEW LOGIC:
+      // - Anonymous: 480p + 720p (can watch, but prompt login for 1080p)
+      // - Registered: 480p + 720p + 1080p (full access)
+      const availableQualities = episode.qualities;
+      
+      const userTier = !user || !user.isEmailVerified ? 'anonymous' : 'registered';
+      
+      console.log(`👤 User tier: ${userTier} - All qualities sent: ${availableQualities.map(q => q.quality).join(', ')}`);
+
+      // 5. Format response data
       const playbackData = {
         episode: {
           id: episode._id,
@@ -60,21 +71,27 @@ class PlaybackService {
           seasonType: episode.seasonId.seasonType
         },
         video: {
-        hlsPath: episode.hlsPath.replace(/\\/g, '/'), // ✅ Convert \ to /
-        qualities: episode.qualities.map(q => ({
-          quality: q.quality,
-          file: q.file.replace(/\\/g, '/') // ✅ Convert \ to /
-        }))
+          hlsPath: episode.hlsPath.replace(/\\/g, '/'), // ✅ Convert \ to /
+          qualities: availableQualities.map(q => ({
+            quality: q.quality,
+            file: q.file.replace(/\\/g, '/') // ✅ Convert \ to /
+          })),
+          subtitles: episode.subtitles.map(sub => ({
+            language: sub.language,
+            label: sub.label,
+            file: sub.file,
+            type: sub.type
+          }))
         },
-        subtitles: episode.subtitles.map(sub => ({
-          language: sub.language,
-          label: sub.label,
-          file: sub.file,
-          type: sub.type
-        }))
+        // User info for frontend
+        userAccess: {
+          tier: userTier, // 'anonymous' | 'registered'
+          isLoggedIn: !!(user && user.isEmailVerified)
+        }
       };
 
       console.log(`📺 Playback info loaded for episode: ${episode.title} (ID: ${episodeId})`);
+      console.log(`👤 User: ${user ? user.email : 'Anonymous'}`);
       return playbackData;
 
     } catch (error) {

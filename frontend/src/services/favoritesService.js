@@ -5,7 +5,8 @@ import axios from 'axios';
  * Service để gọi các API endpoints cho user favorites management
  */
 
-const API_URL = 'http://localhost:5000/api/user/favorites';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = `${API_BASE_URL}/api/user/favorites`;
 
 // Create axios instance
 const favoritesAPI = axios.create({

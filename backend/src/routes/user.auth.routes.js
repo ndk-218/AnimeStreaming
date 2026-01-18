@@ -90,4 +90,29 @@ router.post('/change-password', userAuth, validateChangePassword, userAuthContro
  */
 router.get('/me', userAuth, userAuthController.getCurrentUser);
 
+/**
+ * ===== OTP-BASED PASSWORD RESET ROUTES =====
+ */
+
+/**
+ * @route   POST /api/users/auth/request-otp
+ * @desc    Request OTP for password reset
+ * @access  Public
+ */
+router.post('/request-otp', validateEmail, userAuthController.requestOTP);
+
+/**
+ * @route   POST /api/users/auth/verify-otp
+ * @desc    Verify OTP code
+ * @access  Public
+ */
+router.post('/verify-otp', userAuthController.verifyOTP);
+
+/**
+ * @route   POST /api/users/auth/reset-password-otp
+ * @desc    Reset password with verified OTP
+ * @access  Public
+ */
+router.post('/reset-password-otp', userAuthController.resetPasswordWithOTP);
+
 module.exports = router;

@@ -105,7 +105,8 @@ class SeasonService {
         posterImage: data.posterImage || '',
         status: data.status || 'upcoming',
         studios: studioIds,
-        genres: genreIds
+        genres: genreIds,
+        isUpscaled: data.isUpscaled || false
       });
 
       // Update studio và genre usage counts
@@ -123,9 +124,12 @@ class SeasonService {
         );
       }
 
-      console.log(`✅ Season created: ${season.title} (Type: ${season.seasonType}, Number: ${season.seasonNumber})`);
+      console.log(`✅ Season created: ${season.title}`);
       console.log(`   Studios: ${data.studios?.join(', ') || 'None'}`);
       console.log(`   Genres: ${data.genres?.join(', ') || 'None'}`);
+      if (season.isUpscaled) {
+        console.log(`   ⚡ AI Upscaling: ENABLED`);
+      }
       
       return season;
 
@@ -177,16 +181,11 @@ class SeasonService {
    */
   static async getSeasonsBySeries(seriesId, includeEpisodes = false) {
     try {
-      console.log('🔍 SeasonService.getSeasonsBySeries called with seriesId:', seriesId);
-      
       const seasons = await Season.find({ seriesId })
         .populate('studios', 'name')
         .populate('genres', 'name')
-        .select('title seasonNumber seasonType releaseYear description posterImage episodeCount status studios genres')
+        .select('title seasonNumber seasonType releaseYear description posterImage episodeCount status studios genres isUpscaled')
         .sort({ seasonNumber: 1 });
-      
-      console.log('📊 Found seasons count:', seasons.length);
-      console.log('📋 Season seriesIds:', seasons.map(s => ({ id: s._id, seriesId: s.seriesId })));
 
       if (!includeEpisodes) {
         return seasons;
@@ -274,7 +273,8 @@ class SeasonService {
         'posterImage', 
         'status',
         'studios',
-        'genres'
+        'genres',
+        'isUpscaled'
       ];
 
       allowedFields.forEach(field => {
@@ -764,15 +764,17 @@ class SeasonService {
 
   /**
    * Advanced Search Seasons với filters
-   * @param {Object} filters - { seasonTypes, genres, studios, yearStart, yearEnd, excludeYears, sortBy, page, limit }
+   * @param {Object} filters - { seasonTypes, genres, excludeGenres, studios, excludeStudios, yearStart, yearEnd, excludeYears, sortBy, page, limit }
    * @returns {Object} - { seasons, pagination }
    */
   static async advancedSearchSeasons(filters = {}) {
     try {
       const {
         seasonTypes = [], // ['tv', 'movie', 'ova', 'special']
-        genres = [],      // Array of genre names
-        studios = [],     // Array of studio names
+        genres = [],      // Array of genre names (INCLUDE)
+        excludeGenres = [], // Array of genre names to EXCLUDE
+        studios = [],     // Array of studio names (INCLUDE)
+        excludeStudios = [], // Array of studio names to EXCLUDE
         yearStart = null, // Năm bắt đầu
         yearEnd = null,   // Năm kết thúc
         excludeYears = [], // Array of years to exclude
@@ -844,7 +846,7 @@ class SeasonService {
         }
       ];
 
-      // Filter by genres (AND logic - phải có TẤT CẢ genres được chọn)
+      // Filter by INCLUDE genres (AND logic - phải có TẤT CẢ genres được chọn)
       if (genres.length > 0) {
         pipeline.push({
           $match: {
@@ -858,7 +860,28 @@ class SeasonService {
         });
       }
 
-      // Filter by studios (AND logic - phải có TẤT CẢ studios được chọn)
+      // Filter by EXCLUDE genres (KHÔNG được có bất kỳ genre nào trong danh sách)
+      if (excludeGenres.length > 0) {
+        pipeline.push({
+          $match: {
+            $expr: {
+              $eq: [
+                {
+                  $size: {
+                    $setIntersection: [
+                      excludeGenres,
+                      '$genreDetails.name'
+                    ]
+                  }
+                },
+                0
+              ]
+            }
+          }
+        });
+      }
+
+      // Filter by INCLUDE studios (AND logic - phải có TẤT CẢ studios được chọn)
       if (studios.length > 0) {
         pipeline.push({
           $match: {
@@ -866,6 +889,27 @@ class SeasonService {
               $setIsSubset: [
                 studios,
                 '$studioDetails.name'
+              ]
+            }
+          }
+        });
+      }
+
+      // Filter by EXCLUDE studios (KHÔNG được có bất kỳ studio nào trong danh sách)
+      if (excludeStudios.length > 0) {
+        pipeline.push({
+          $match: {
+            $expr: {
+              $eq: [
+                {
+                  $size: {
+                    $setIntersection: [
+                      excludeStudios,
+                      '$studioDetails.name'
+                    ]
+                  }
+                },
+                0
               ]
             }
           }
@@ -919,6 +963,10 @@ class SeasonService {
       const seasons = await Season.aggregate(pipeline);
 
       console.log(`🔍 Advanced Search: Found ${total} seasons (page ${page}/${Math.ceil(total / limit)})`);
+      if (genres.length > 0) console.log(`   Include genres: ${genres.join(', ')}`);
+      if (excludeGenres.length > 0) console.log(`   Exclude genres: ${excludeGenres.join(', ')}`);
+      if (studios.length > 0) console.log(`   Include studios: ${studios.join(', ')}`);
+      if (excludeStudios.length > 0) console.log(`   Exclude studios: ${excludeStudios.join(', ')}`);
 
       return {
         seasons,

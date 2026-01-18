@@ -2,7 +2,8 @@
 const crypto = require('crypto');
 const User = require('../models/User');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwtUtils');
-const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/emailService');
+const { sendVerificationEmail, sendPasswordResetEmail, sendOTPEmail } = require('../utils/emailService');
+const otpService = require('./otp.service');
 
 /**
  * ===== USER AUTH SERVICE =====
@@ -26,26 +27,16 @@ const register = async (email, password, username, displayName) => {
       throw new Error('Username already taken');
     }
 
-    // 3. Generate email verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationTokenExpiry = new Date();
-    verificationTokenExpiry.setHours(verificationTokenExpiry.getHours() + 24); // 24 hours
-
-    // 4. Create new user
+    // 3. Create new user (email verified by default)
     const user = new User({
       email: email.toLowerCase().trim(),
       username: username.toLowerCase().trim(),
       displayName: displayName.trim(),
-      password, // Will be hashed by pre-save hook
-      verificationToken,
-      verificationTokenExpiry,
-      isEmailVerified: false
+      password // Will be hashed by pre-save hook
+      // isEmailVerified: true (set by default in model)
     });
 
     await user.save();
-
-    // 5. Send verification email
-    await sendVerificationEmail(user.email, user.displayName, verificationToken);
 
     console.log(`✅ New user registered: ${user.email}`);
 
@@ -57,7 +48,7 @@ const register = async (email, password, username, displayName) => {
         username: user.username,
         displayName: user.displayName
       },
-      message: 'Registration successful. Please check your email to verify your account.'
+      message: 'Đăng ký thành công! Bạn có thể đăng nhập ngay.'
     };
 
   } catch (error) {
@@ -162,12 +153,7 @@ const login = async (emailOrUsername, password) => {
       throw new Error('Account is deactivated. Please contact support.');
     }
 
-    // 3. Check if email is verified
-    if (!user.isEmailVerified) {
-      throw new Error('Please verify your email before logging in');
-    }
-
-    // 4. Verify password
+    // 3. Verify password (removed email verification check)
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       throw new Error('Invalid credentials');
@@ -390,6 +376,126 @@ const changePassword = async (userId, currentPassword, newPassword) => {
   }
 };
 
+/**
+ * ===== OTP-BASED PASSWORD RESET =====
+ */
+
+/**
+ * Request OTP for password reset
+ */
+const requestOTP = async (email) => {
+  try {
+    // Check if user exists
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      // Don't reveal if email exists or not (security)
+      return {
+        success: true,
+        message: 'Nếu email tồn tại, mã OTP sẽ được gửi đến hòm thư của bạn.'
+      };
+    }
+
+    // Check cooldown
+    const cooldownCheck = otpService.canResendOTP(user.email);
+    if (!cooldownCheck.canResend) {
+      throw new Error(`Vui lòng chờ ${cooldownCheck.waitSeconds} giây trước khi gửi lại mã OTP.`);
+    }
+
+    // Generate OTP
+    const otp = otpService.generateOTP();
+
+    // Store OTP in memory
+    otpService.storeOTP(user.email, otp);
+
+    // Send OTP via email
+    await sendOTPEmail(user.email, user.displayName, otp);
+
+    console.log(`✅ OTP requested for: ${user.email}`);
+
+    return {
+      success: true,
+      message: 'Mã OTP đã được gửi đến email của bạn.',
+      expiresIn: otpService.OTP_EXPIRY_SECONDS
+    };
+
+  } catch (error) {
+    console.error('❌ Request OTP error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Verify OTP code
+ */
+const verifyOTP = async (email, otp) => {
+  try {
+    // Check if user exists
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Verify OTP
+    const verifyResult = otpService.verifyOTP(user.email, otp);
+
+    if (!verifyResult.success) {
+      throw new Error(verifyResult.error);
+    }
+
+    console.log(`✅ OTP verified for: ${user.email}`);
+
+    return {
+      success: true,
+      message: 'Mã OTP đúng. Bạn có thể đặt lại mật khẩu.'
+    };
+
+  } catch (error) {
+    console.error('❌ Verify OTP error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Reset password with verified OTP
+ */
+const resetPasswordWithOTP = async (email, newPassword) => {
+  try {
+    // Check if user exists
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Check if OTP is verified
+    const isVerified = otpService.isOTPVerified(user.email);
+    if (!isVerified) {
+      throw new Error('OTP chưa được xác thực. Vui lòng xác thực mã OTP trước.');
+    }
+
+    // Set new password (this will be hashed by pre-save hook)
+    user.password = newPassword; // Direct assignment, let pre-save hook handle hashing
+    user.refreshToken = null; // Invalidate existing sessions
+    await user.save();
+
+    // Delete OTP after successful password reset
+    otpService.deleteOTP(user.email);
+
+    console.log(`✅ Password reset with OTP successful: ${user.email}`);
+
+    return {
+      success: true,
+      message: 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.'
+    };
+
+  } catch (error) {
+    console.error('❌ Reset password with OTP error:', error.message);
+    throw error;
+  }
+};
+
 module.exports = {
   register,
   verifyEmail,
@@ -399,5 +505,9 @@ module.exports = {
   logout,
   requestPasswordReset,
   resetPassword,
-  changePassword
+  changePassword,
+  // OTP-based password reset
+  requestOTP,
+  verifyOTP,
+  resetPasswordWithOTP
 };

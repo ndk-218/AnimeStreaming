@@ -162,6 +162,78 @@ class EpisodeService {
   }
 
   /**
+   * Organize subtitle files: Move from temp to uploads/{episodeId}/subtitles/
+   * NOTE: This will REPLACE existing subtitles
+   */
+  static async organizeSubtitleFiles(episodeId, subtitleFiles) {
+    try {
+      console.log(`📝 Organizing subtitle files for episode: ${episodeId}`);
+      console.log(`   Number of subtitle files: ${subtitleFiles.length}`);
+
+      const episodeDir = path.join(process.cwd(), 'uploads', 'videos', episodeId.toString());
+      const subtitlesDir = path.join(episodeDir, 'subtitles');
+      
+      // IMPORTANT: Remove old subtitle folder to ensure clean replacement
+      if (await fs.pathExists(subtitlesDir)) {
+        console.log(`   🗑️ Removing old subtitles folder...`);
+        await fs.remove(subtitlesDir);
+      }
+      
+      // Create fresh subtitles directory
+      await fs.ensureDir(subtitlesDir);
+
+      const organizedSubtitles = [];
+
+      for (const file of subtitleFiles) {
+        try {
+          // Check if temp file exists
+          const fileExists = await fs.pathExists(file.path);
+          if (!fileExists) {
+            console.warn(`⚠️ Subtitle file not found: ${file.path}`);
+            continue;
+          }
+
+          // Get file extension
+          const ext = path.extname(file.originalname);
+          
+          // For now, we only support Vietnamese subtitle, so use 'vi' as default
+          const language = 'vi';
+          const newFilename = `${language}${ext}`;
+          const newFilePath = path.join(subtitlesDir, newFilename);
+          
+          console.log(`   Moving subtitle: ${file.originalname} -> ${newFilename}`);
+
+          // Move file from temp to subtitles folder
+          await fs.move(file.path, newFilePath, { overwrite: true });
+
+          // Add to organized list (save relative path from uploads/)
+          const relativePath = path.relative(
+            path.join(process.cwd(), 'uploads'),
+            newFilePath
+          ).replace(/\\/g, '/'); // Convert Windows backslashes to forward slashes
+
+          organizedSubtitles.push({
+            language: 'vi',
+            label: 'Tiếng Việt',
+            file: `uploads/${relativePath}`
+          });
+
+          console.log(`   ✅ Subtitle organized: ${relativePath}`);
+        } catch (fileError) {
+          console.error(`❌ Error processing subtitle file ${file.originalname}:`, fileError.message);
+        }
+      }
+
+      console.log(`✅ Organized ${organizedSubtitles.length} subtitle file(s)`);
+      return organizedSubtitles;
+
+    } catch (error) {
+      console.error('❌ Error organizing subtitle files:', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Lấy episode với thông tin chi tiết
    */
   static async getEpisodeWithDetails(episodeId) {
@@ -229,6 +301,48 @@ class EpisodeService {
       await episode.save();
       
       console.log(`📺 Episode processing updated: ${episode.title} - Status: ${episode.processingStatus}`);
+      
+      // TRIGGER NOTIFICATION: Nếu episode vừa được hoàn tất xử lý
+      if (updates.processingStatus === 'completed') {
+        try {
+          const notificationService = require('./notification.service');
+          await notificationService.createEpisodeReleaseNotifications(episodeId);
+          console.log('📢 Episode release notifications sent');
+        } catch (notifError) {
+          console.error('⚠️ Failed to send notifications:', notifError.message);
+          // Don't throw - notification failure shouldn't break episode processing
+        }
+        
+        // ADMIN NOTIFICATION: Episode completed
+        try {
+          const adminNotificationService = require('./adminNotification.service');
+          // Find existing upload notification to get admin info
+          const AdminNotification = require('../models/AdminNotification');
+          const uploadNotif = await AdminNotification.findOne({
+            episodeId: episodeId,
+            type: 'upload'
+          }).sort({ createdAt: -1 });
+          
+          if (uploadNotif) {
+            await adminNotificationService.createActivityNotification({
+              adminId: uploadNotif.adminId,
+              adminName: uploadNotif.adminName,
+              action: 'updated',
+              entityType: 'episode',
+              entityId: episodeId,
+              seriesName: uploadNotif.seriesName,
+              seasonTitle: uploadNotif.seasonTitle,
+              episodeTitle: uploadNotif.episodeTitle,
+              episodeNumber: uploadNotif.episodeNumber
+              // NOTE: No image - populated from episode.seasonId.posterImage
+            });
+            console.log('📢 Admin activity notification created for completed episode');
+          }
+        } catch (adminNotifError) {
+          console.error('⚠️ Failed to create admin notification:', adminNotifError.message);
+        }
+      }
+      
       return episode;
 
     } catch (error) {
@@ -561,8 +675,8 @@ class EpisodeService {
           const itemPath = path.join(episodeDir, item);
           const stat = await fs.stat(itemPath);
           
-          // Xóa HLS folders (720p, 480p, 1080p)
-          if (stat.isDirectory() && (item === '720p' || item === '480p' || item === '1080p' || item === 'subtitles')) {
+          // Xóa HLS folders (720p, 480p, 1080p) - KHÔNG XÓA SUBTITLES
+          if (stat.isDirectory() && (item === '720p' || item === '480p' || item === '1080p')) {
             await fs.remove(itemPath);
             console.log(`🗑️ Removed HLS folder: ${item}`);
           }

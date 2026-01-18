@@ -8,7 +8,7 @@ const subtitleSchema = new mongoose.Schema({
 }, { _id: false, versionKey: false });
 
 const videoQualitySchema = new mongoose.Schema({
-  quality: { type: String, enum: ['480p', '1080p'], required: true },
+  quality: { type: String, enum: ['480p', '720p', '1080p', 'Upscaled'], required: true },
   file: { type: String, required: true }
 }, { _id: false, versionKey: false });
 
@@ -47,6 +47,11 @@ const episodeSchema = new mongoose.Schema(
       type: String,
       enum: ['pending', 'processing', 'completed', 'failed'],
       default: 'pending'
+    },
+    processingStage: {
+      type: String,
+      enum: ['uploading', 'upscaling', 'converting', 'completed'],
+      default: 'uploading'
     },
     viewCount: {
       type: Number,

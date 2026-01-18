@@ -415,8 +415,145 @@ const sendWelcomeEmail = async (email, displayName) => {
   }
 };
 
+/**
+ * Send OTP email for password reset
+ * 
+ * @param {String} email - User email address
+ * @param {String} displayName - User display name
+ * @param {String} otp - 6-digit OTP code
+ */
+const sendOTPEmail = async (email, displayName, otp) => {
+  try {
+    console.log('📧 Sending OTP email to:', email);
+    
+    const transporter = createTransporter();
+    
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      to: email,
+      subject: 'Mã OTP Đặt Lại Mật Khẩu - Anime Streaming',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .container {
+              background-color: #f9f9f9;
+              border-radius: 10px;
+              padding: 30px;
+              border: 1px solid #ddd;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+            }
+            .header h1 {
+              color: #dc2626;
+              margin: 0;
+            }
+            .content {
+              background-color: white;
+              padding: 20px;
+              border-radius: 5px;
+            }
+            .otp-box {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              font-size: 32px;
+              font-weight: bold;
+              letter-spacing: 8px;
+              text-align: center;
+              padding: 20px;
+              border-radius: 10px;
+              margin: 20px 0;
+              font-family: 'Courier New', monospace;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 20px;
+              font-size: 12px;
+              color: #666;
+            }
+            .warning {
+              background-color: #fee2e2;
+              border-left: 4px solid #dc2626;
+              padding: 10px;
+              margin: 15px 0;
+            }
+            .timer {
+              background-color: #fef3c7;
+              border-left: 4px solid #f59e0b;
+              padding: 10px;
+              margin: 15px 0;
+              text-align: center;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🔐 Đặt Lại Mật Khẩu</h1>
+            </div>
+            
+            <div class="content">
+              <h2>Xin chào ${displayName}!</h2>
+              
+              <p>Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
+              
+              <p>Đây là mã OTP của bạn:</p>
+              
+              <div class="otp-box">
+                ${otp}
+              </div>
+              
+              <div class="timer">
+                <strong>⏰ Mã OTP có hiệu lực trong 2 phút (120 giây)</strong>
+              </div>
+              
+              <p>Vui lòng nhập mã này vào trang đặt lại mật khẩu để tiếp tục.</p>
+              
+              <div class="warning">
+                <strong>⚠️ Lưu ý bảo mật:</strong>
+                <ul>
+                  <li>Không chia sẻ mã OTP này với bất kỳ ai</li>
+                  <li>Nhân viên hỗ trợ sẽ không bao giờ yêu cầu mã OTP</li>
+                  <li>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div class="footer">
+              <p>Email tự động, vui lòng không trả lời.</p>
+              <p>&copy; ${new Date().getFullYear()} Anime Streaming. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ OTP email sent to: ${email}`);
+    
+    return { success: true };
+
+  } catch (error) {
+    console.error('❌ Send OTP email error:', error.message);
+    throw new Error('Failed to send OTP email');
+  }
+};
+
 module.exports = {
   sendVerificationEmail,
   sendPasswordResetEmail,
-  sendWelcomeEmail
+  sendWelcomeEmail,
+  sendOTPEmail
 };

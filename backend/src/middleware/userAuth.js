@@ -33,6 +33,16 @@ const userAuth = async (req, res, next) => {
         error: 'Access denied. Invalid or expired token.'
       });
     }
+    
+    // Check if token is user token (not admin)
+    if (decoded.role && decoded.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Admin token cannot access user resources.',
+        tokenRole: 'admin',
+        shouldClearToken: true
+      });
+    }
 
     // Find user in database
     const user = await User.findById(decoded.userId).select('-password -refreshToken');
@@ -52,15 +62,7 @@ const userAuth = async (req, res, next) => {
       });
     }
 
-    // Check if email is verified
-    if (!user.isEmailVerified) {
-      return res.status(403).json({
-        success: false,
-        error: 'Please verify your email before accessing this resource.'
-      });
-    }
-
-    // Check premium expiry
+    // Check premium expiry (removed email verification check)
     if (user.isPremium && user.premiumExpiry) {
       if (new Date() > user.premiumExpiry) {
         user.isPremium = false;
@@ -110,7 +112,7 @@ const optionalUserAuth = async (req, res, next) => {
     // Find user
     const user = await User.findById(decoded.userId).select('-password -refreshToken');
     
-    if (user && user.isActive && user.isEmailVerified) {
+    if (user && user.isActive) {
       // Check premium expiry
       if (user.isPremium && user.premiumExpiry) {
         if (new Date() > user.premiumExpiry) {
@@ -135,7 +137,8 @@ const optionalUserAuth = async (req, res, next) => {
 
 /**
  * Require premium user
- * Must be used after userAuth middleware
+ * DEPRECATED: No longer used - All logged in users have full access
+ * Kept for backward compatibility
  */
 const requirePremium = async (req, res, next) => {
   try {
@@ -146,27 +149,7 @@ const requirePremium = async (req, res, next) => {
       });
     }
 
-    if (!req.user.isPremium) {
-      return res.status(403).json({
-        success: false,
-        error: 'Premium subscription required to access this resource.',
-        upgradeUrl: `${process.env.FRONTEND_URL}/premium`
-      });
-    }
-
-    // Check premium expiry
-    if (req.user.premiumExpiry && new Date() > req.user.premiumExpiry) {
-      req.user.isPremium = false;
-      req.user.premiumExpiry = null;
-      await req.user.save();
-
-      return res.status(403).json({
-        success: false,
-        error: 'Your premium subscription has expired.',
-        renewUrl: `${process.env.FRONTEND_URL}/premium`
-      });
-    }
-
+    // All logged in users now have full access
     next();
 
   } catch (error) {
@@ -181,9 +164,9 @@ const requirePremium = async (req, res, next) => {
 
 /**
  * Check video quality access based on user tier
- * Anonymous: max 480p
- * Regular user: max 720p
- * Premium user: max 1080p
+ * NEW LOGIC:
+ * - Anonymous (not logged in): 480p, 720p only
+ * - Logged in users: All qualities (480p, 720p, 1080p, Upscaled)
  */
 const checkVideoQualityAccess = (req, res, next) => {
   try {
@@ -194,20 +177,24 @@ const checkVideoQualityAccess = (req, res, next) => {
       '360p': 1,
       '480p': 2,
       '720p': 3,
-      '1080p': 4
+      '1080p': 4,
+      'Upscaled': 5
     };
 
     const requestedLevel = qualityLevels[requestedQuality] || 2;
 
     // Determine user tier
-    let maxAllowedLevel = 2; // Default: Anonymous (480p)
+    let maxAllowedLevel;
+    let userTier;
 
     if (req.user) {
-      if (req.user.isPremium && new Date() < req.user.premiumExpiry) {
-        maxAllowedLevel = 4; // Premium: 1080p
-      } else if (req.user.isEmailVerified) {
-        maxAllowedLevel = 3; // Regular user: 720p
-      }
+      // Logged in users: Full access to all qualities
+      maxAllowedLevel = 5; // All qualities including Upscaled
+      userTier = 'logged_in';
+    } else {
+      // Anonymous users: 480p and 720p only
+      maxAllowedLevel = 3; // Max 720p
+      userTier = 'anonymous';
     }
 
     // Check access
@@ -218,21 +205,16 @@ const checkVideoQualityAccess = (req, res, next) => {
 
       return res.status(403).json({
         success: false,
-        error: `Video quality ${requestedQuality} requires ${
-          maxAllowedLevel === 4 ? 'Premium subscription' : 
-          maxAllowedLevel === 3 ? 'User account' : 
-          'higher access level'
-        }`,
+        error: `Video quality ${requestedQuality} requires user login.`,
+        message: 'Please login to access higher quality videos (1080p, Upscaled).',
         maxAllowedQuality: maxQuality,
-        upgradeUrl: !req.user 
-          ? `${process.env.FRONTEND_URL}/register`
-          : `${process.env.FRONTEND_URL}/premium`
+        loginUrl: `${process.env.FRONTEND_URL}/login`
       });
     }
 
     // Attach allowed quality to request
     req.allowedQuality = requestedQuality;
-    req.userTier = !req.user ? 'anonymous' : req.user.isPremium ? 'premium' : 'regular';
+    req.userTier = userTier;
 
     next();
 

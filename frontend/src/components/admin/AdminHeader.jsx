@@ -1,13 +1,30 @@
 import { useNavigate } from 'react-router-dom';
-import useAuthStore from '../../stores/authStore';
+import { useState } from 'react';
 
 export default function AdminHeader() {
   const navigate = useNavigate();
-  const { admin, clearAuth } = useAuthStore();
+  const [adminName] = useState(() => {
+    // Get admin info from localStorage
+    const adminToken = localStorage.getItem('admin-token');
+    if (adminToken) {
+      try {
+        // Decode JWT to get admin info (optional)
+        const payload = JSON.parse(atob(adminToken.split('.')[1]));
+        return payload.displayName || payload.email || 'Admin';
+      } catch (e) {
+        return 'Admin';
+      }
+    }
+    return 'Admin';
+  });
 
   const handleLogout = () => {
-    clearAuth();
-    navigate('/admin/login');
+    // Clear admin token from localStorage
+    localStorage.removeItem('admin-token');
+    localStorage.removeItem('admin-user');
+    
+    // Redirect to admin landing page and reload
+    window.location.href = '/admin';
   };
 
   return (
@@ -37,7 +54,7 @@ export default function AdminHeader() {
             {/* Admin Name */}
             <div className="text-right hidden sm:block">
               <p className="text-white text-sm font-medium">
-                {admin?.username || 'Admin'}
+                {adminName}
               </p>
               <p className="text-white/70 text-xs">Administrator</p>
             </div>

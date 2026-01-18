@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, Eye, EyeOff, Loader } from 'lucide-react';
 import authService from '../../services/authService';
 import useAuthStore from '../../stores/authStore';
@@ -8,12 +8,16 @@ import useAuthStore from '../../stores/authStore';
  * Modal đăng nhập/đăng ký cho user
  */
 const AuthModal = ({ isOpen, onClose }) => {
-  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'verify'
+  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'success' | 'forgot' | 'verify-otp' | 'reset-password'
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true); // Remember me checkbox
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // OTP state
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [canResend, setCanResend] = useState(true);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -22,7 +26,8 @@ const AuthModal = ({ isOpen, onClose }) => {
     username: '',
     displayName: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    otp: '' // For OTP input
   });
 
   // Auth store
@@ -110,7 +115,9 @@ const AuthModal = ({ isOpen, onClose }) => {
       );
 
       setSuccess(response.message);
-      setMode('verify');
+      
+      // Switch to success screen
+      setMode('success');
       
       // Clear form
       setFormData({
@@ -133,25 +140,155 @@ const AuthModal = ({ isOpen, onClose }) => {
     }
   };
 
-  // Handle resend verification
-  const handleResendVerification = async () => {
+  // Removed: handleResendVerification function - no longer needed
+
+  /**
+   * ===== OTP FORGOT PASSWORD HANDLERS =====
+   */
+
+  // Handle request OTP
+  const handleRequestOTP = async (e) => {
+    e.preventDefault();
+    setError('');
+
     if (!formData.email) {
       setError('Vui lòng nhập email');
       return;
     }
 
     setIsLoading(true);
-    setError('');
 
     try {
-      await authService.resendVerification(formData.email);
-      setSuccess('Email xác thực đã được gửi lại!');
+      const response = await authService.requestOTP(formData.email);
+      setSuccess(response.message);
+      
+      // Switch to verify OTP screen
+      setMode('verify-otp');
+      
+      // Start countdown (120 seconds)
+      setOtpCountdown(120);
+      setCanResend(false);
+
     } catch (err) {
-      setError(err.error || 'Gửi email thất bại');
+      setError(err.error || 'Gửi mã OTP thất bại');
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Handle verify OTP
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!formData.otp || formData.otp.length !== 6) {
+      setError('Vui lòng nhập mã OTP 6 số');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await authService.verifyOTP(formData.email, formData.otp);
+      setSuccess('Mã OTP đúng! Vui lòng nhập mật khẩu mới.');
+      
+      // Switch to reset password screen
+      setTimeout(() => {
+        setMode('reset-password');
+        setSuccess('');
+      }, 1000);
+
+    } catch (err) {
+      setError(err.error || 'Mã OTP không đúng');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle reset password with OTP
+  const handleResetPasswordOTP = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!formData.password || formData.password.length < 6) {
+      setError('Mật khẩu phải có ít nhất 6 ký tự');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Mật khẩu xác nhận không khớp');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await authService.resetPasswordWithOTP(
+        formData.email,
+        formData.password
+      );
+      
+      setSuccess(response.message);
+      
+      // Clear form and go back to login after 2 seconds
+      setTimeout(() => {
+        setMode('login');
+        setFormData({
+          emailOrUsername: '',
+          email: '',
+          username: '',
+          displayName: '',
+          password: '',
+          confirmPassword: '',
+          otp: ''
+        });
+        setSuccess('');
+        setError('');
+      }, 2000);
+
+    } catch (err) {
+      setError(err.error || 'Đặt lại mật khẩu thất bại');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle resend OTP
+  const handleResendOTP = async () => {
+    if (!canResend) return;
+
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const response = await authService.requestOTP(formData.email);
+      setSuccess('Mã OTP mới đã được gửi!');
+      
+      // Restart countdown
+      setOtpCountdown(120);
+      setCanResend(false);
+      
+      // Clear OTP input
+      setFormData(prev => ({ ...prev, otp: '' }));
+
+    } catch (err) {
+      setError(err.error || 'Gửi lại mã OTP thất bại');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (otpCountdown > 0) {
+      const timer = setTimeout(() => {
+        setOtpCountdown(otpCountdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (otpCountdown === 0 && !canResend) {
+      setCanResend(true);
+    }
+  }, [otpCountdown, canResend]);
 
   if (!isOpen) return null;
 
@@ -180,7 +317,10 @@ const AuthModal = ({ isOpen, onClose }) => {
             <h2 className="text-3xl font-bold text-white mb-2">
               {mode === 'login' && 'Đăng nhập'}
               {mode === 'register' && 'Đăng ký'}
-              {mode === 'verify' && 'Xác thực Email'}
+              {mode === 'success' && 'Đăng ký thành công!'}
+              {mode === 'forgot' && 'Quên mật khẩu'}
+              {mode === 'verify-otp' && 'Xác thực OTP'}
+              {mode === 'reset-password' && 'Đặt lại mật khẩu'}
             </h2>
             <p className="text-slate-400">
               {mode === 'login' && (
@@ -213,7 +353,6 @@ const AuthModal = ({ isOpen, onClose }) => {
                   </button>
                 </>
               )}
-              {mode === 'verify' && 'Kiểm tra email để xác thực tài khoản'}
             </p>
           </div>
 
@@ -310,6 +449,11 @@ const AuthModal = ({ isOpen, onClose }) => {
               <div className="text-center">
                 <button
                   type="button"
+                  onClick={() => {
+                    setMode('forgot');
+                    setError('');
+                    setSuccess('');
+                  }}
                   className="text-slate-400 hover:text-white text-sm"
                 >
                   Quên mật khẩu?
@@ -426,44 +570,224 @@ const AuthModal = ({ isOpen, onClose }) => {
             </form>
           )}
 
-          {/* Verify Email Screen */}
-          {mode === 'verify' && (
+          {/* Success Screen */}
+          {mode === 'success' && (
             <div className="text-center py-8">
-              <div className="w-16 h-16 bg-yellow-400/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Mail className="text-yellow-400" size={32} />
+              <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-10 h-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
               </div>
               
               <h3 className="text-xl font-bold text-white mb-2">
-                Kiểm tra Email của bạn
+                Chúc mừng!
               </h3>
               
-              <p className="text-slate-400 mb-6">
-                Chúng tôi đã gửi email xác thực đến <strong className="text-white">{formData.email}</strong>
+              <p className="text-slate-300 mb-6">
+                Tài khoản của bạn đã được tạo thành công. <br />
+                Bạn có thể đăng nhập ngay bây giờ!
               </p>
-
-              <div className="bg-slate-700 rounded-lg p-4 mb-6">
-                <p className="text-slate-300 text-sm">
-                  Không nhận được email?{' '}
-                  <button
-                    onClick={handleResendVerification}
-                    disabled={isLoading}
-                    className="text-yellow-400 hover:text-yellow-300 font-medium"
-                  >
-                    Gửi lại
-                  </button>
-                </p>
-              </div>
 
               <button
                 onClick={() => {
                   setMode('login');
                   setSuccess('');
+                  setError('');
                 }}
-                className="text-slate-400 hover:text-white"
+                className="w-full bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold py-3 rounded-lg transition-colors"
               >
-                Quay lại đăng nhập
+                Chuyển đến Đăng nhập
               </button>
             </div>
+          )}
+
+          {/* Forgot Password Screen */}
+          {mode === 'forgot' && (
+            <form onSubmit={handleRequestOTP} className="space-y-4">
+              <p className="text-slate-300 text-center mb-4">
+                Nhập email của bạn, chúng tôi sẽ gửi mã OTP để đặt lại mật khẩu.
+              </p>
+
+              {/* Email */}
+              <div>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="Email"
+                    className="w-full bg-slate-700 text-white pl-11 pr-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Submit button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader className="animate-spin mr-2" size={20} />
+                    Đang gửi...
+                  </>
+                ) : (
+                  'Gửi mã OTP'
+                )}
+              </button>
+
+              {/* Back to login */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login');
+                    setError('');
+                    setSuccess('');
+                  }}
+                  className="text-slate-400 hover:text-white text-sm"
+                >
+                  Quay lại đăng nhập
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Verify OTP Screen */}
+          {mode === 'verify-otp' && (
+            <form onSubmit={handleVerifyOTP} className="space-y-4">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Mail className="text-purple-400" size={32} />
+                </div>
+                <p className="text-slate-300">
+                  Mã OTP đã được gửi đến <strong className="text-white">{formData.email}</strong>
+                </p>
+              </div>
+
+              {/* OTP Input */}
+              <div>
+                <input
+                  type="text"
+                  name="otp"
+                  value={formData.otp}
+                  onChange={handleChange}
+                  placeholder="Nhập mã OTP 6 số"
+                  maxLength={6}
+                  className="w-full bg-slate-700 text-white text-center text-2xl font-bold tracking-widest px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                  required
+                />
+              </div>
+
+              {/* Countdown */}
+              <div className="text-center">
+                {otpCountdown > 0 ? (
+                  <p className="text-slate-400 text-sm">
+                    Mã OTP còn hiệu lực trong <strong className="text-yellow-400">{otpCountdown}s</strong>
+                  </p>
+                ) : (
+                  <p className="text-red-400 text-sm">
+                    Mã OTP đã hết hạn
+                  </p>
+                )}
+              </div>
+
+              {/* Submit button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader className="animate-spin mr-2" size={20} />
+                    Đang xác thực...
+                  </>
+                ) : (
+                  'Xác thực OTP'
+                )}
+              </button>
+
+              {/* Resend OTP */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={handleResendOTP}
+                  disabled={!canResend || isLoading}
+                  className="text-slate-400 hover:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {canResend ? 'Gửi lại mã OTP' : `Gửi lại sau ${otpCountdown}s`}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Reset Password Screen */}
+          {mode === 'reset-password' && (
+            <form onSubmit={handleResetPasswordOTP} className="space-y-4">
+              <p className="text-slate-300 text-center mb-4">
+                Nhập mật khẩu mới của bạn
+              </p>
+
+              {/* New Password */}
+              <div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Mật khẩu mới"
+                    className="w-full bg-slate-700 text-white pl-11 pr-11 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="Xác nhận mật khẩu"
+                    className="w-full bg-slate-700 text-white pl-11 pr-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Submit button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader className="animate-spin mr-2" size={20} />
+                    Đang xử lý...
+                  </>
+                ) : (
+                  'Đổi mật khẩu'
+                )}
+              </button>
+            </form>
           )}
         </div>
       </div>

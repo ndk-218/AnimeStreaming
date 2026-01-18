@@ -224,6 +224,49 @@ const authService = {
     } catch (error) {
       throw error.response?.data || { error: 'Token refresh failed' };
     }
+  },
+
+  /**
+   * ===== OTP-BASED PASSWORD RESET =====
+   */
+
+  /**
+   * Request OTP for password reset
+   */
+  requestOTP: async (email) => {
+    try {
+      const response = await authAPI.post('/request-otp', { email });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { error: 'Failed to send OTP' };
+    }
+  },
+
+  /**
+   * Verify OTP code
+   */
+  verifyOTP: async (email, otp) => {
+    try {
+      const response = await authAPI.post('/verify-otp', { email, otp });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { error: 'OTP verification failed' };
+    }
+  },
+
+  /**
+   * Reset password with verified OTP
+   */
+  resetPasswordWithOTP: async (email, newPassword) => {
+    try {
+      const response = await authAPI.post('/reset-password-otp', {
+        email,
+        newPassword
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { error: 'Password reset failed' };
+    }
   }
 };
 
