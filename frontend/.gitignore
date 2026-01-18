@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# API Keys and Secrets (CRITICAL - Never commit)
+.env
+.env.local
+.env.*.local
+src/config/gemini.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

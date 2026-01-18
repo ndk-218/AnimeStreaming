@@ -112,6 +112,10 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip validation in development to avoid trust proxy error
+  validate: {
+    trustProxy: false
+  }
 });
 app.use(limiter);
 

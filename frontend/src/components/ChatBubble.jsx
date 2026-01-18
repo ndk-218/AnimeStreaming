@@ -117,39 +117,16 @@ const ChatBubble = () => {
       setMessages(prev => [...prev, userMessage]);
       setInputMessage('');
       
-      // Save user message to backend
-      await chatService.addUserMessage(trimmedMessage);
-      
-      // Get conversation history for AI context
-      const historyResponse = await chatService.getHistory();
-      const fullHistory = historyResponse.data?.messages || [];
-      
-      // ===== HYBRID APPROACH: Optimize context =====
-      let conversationHistory;
-      if (fullHistory.length <= 6) {
-        // Short conversation → send full history
-        conversationHistory = fullHistory;
-      } else {
-        // Long conversation → send only last 6 messages (3 Q&A pairs)
-        conversationHistory = fullHistory.slice(-6);
-      }
-      
-      // Call Gemini API with optimized context
-      const aiResponse = await geminiService.sendMessage(
-        trimmedMessage,
-        conversationHistory
-      );
+      // Call backend API - it will handle both saving and AI response
+      const response = await geminiService.sendMessage(trimmedMessage);
       
       // Add AI response to UI
       const aiMessage = {
         role: 'ai',
-        message: aiResponse,
+        message: response,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, aiMessage]);
-      
-      // Save AI response to backend
-      await chatService.addAIResponse(aiResponse);
       
     } catch (error) {
       console.error('Send message error:', error);
@@ -161,6 +138,8 @@ const ChatBubble = () => {
         errorMessage = 'Server AI đang quá tải. Vui lòng đợi 5-10 giây rồi thử lại. 🔄';
       } else if (error.message.includes('quota') || error.message.includes('rate limit')) {
         errorMessage = 'Bạn đang gửi tin nhắn quá nhanh. Vui lòng đợi vài giây. ⏱️';
+      } else if (error.message.includes('đăng nhập')) {
+        errorMessage = error.message;
       }
       
       setError(errorMessage);

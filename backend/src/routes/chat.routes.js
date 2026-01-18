@@ -39,6 +39,14 @@ router.get('/stats', userAuth, chatController.getStats);
 // ============================================
 
 /**
+ * @route   POST /api/chat/send
+ * @desc    Send message to AI and get response (all-in-one)
+ * @access  Private
+ * @body    { message: String }
+ */
+router.post('/send', userAuth, chatController.sendMessage);
+
+/**
  * @route   POST /api/chat/message
  * @desc    Add user message to conversation
  * @access  Private

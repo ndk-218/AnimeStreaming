@@ -1,4 +1,5 @@
 const chatService = require('../services/chat.service');
+const geminiService = require('../services/gemini.service');
 
 /**
  * ===== CHAT CONTROLLER =====
@@ -217,6 +218,79 @@ const getStats = async (req, res) => {
   }
 };
 
+/**
+ * @route   POST /api/chat/send
+ * @desc    Send message to AI and get response
+ * @access  Private (requires userAuth)
+ * @body    { message: String }
+ */
+const sendMessage = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { message } = req.body;
+    
+    // Validate input
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Message is required'
+      });
+    }
+    
+    // Validate message length
+    if (message.length > 1000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Message too long (max 1000 characters)'
+      });
+    }
+    
+    // Get conversation history for context
+    const history = await chatService.getConversationHistory(userId);
+    
+    // Send message to Gemini AI
+    const aiResponse = await geminiService.sendMessage(message, history);
+    
+    // Save user message to database
+    await chatService.addUserMessage(userId, message);
+    
+    // Save AI response to database
+    await chatService.addAIResponse(userId, aiResponse);
+    
+    // Return AI response
+    res.json({
+      success: true,
+      data: {
+        userMessage: message,
+        aiResponse: aiResponse
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Send message error:', error);
+    
+    // Handle specific errors
+    if (error.message.includes('quá tải')) {
+      return res.status(503).json({
+        success: false,
+        error: error.message
+      });
+    }
+    
+    if (error.message.includes('timeout')) {
+      return res.status(504).json({
+        success: false,
+        error: error.message
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: 'Không thể kết nối với AI. Vui lòng thử lại sau.'
+    });
+  }
+};
+
 module.exports = {
   getConversation,
   addMessage,
@@ -224,5 +298,6 @@ module.exports = {
   getHistory,
   clearConversation,
   deleteConversation,
-  getStats
+  getStats,
+  sendMessage
 };
