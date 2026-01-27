@@ -22,6 +22,9 @@ const VideoPlayer = ({ hlsPath, qualities, subtitles = [], episodeId, autoPlay =
   const watchTimeRef = useRef(0);
   const progressSaveIntervalRef = useRef(null);
   const containerRef = useRef(null);
+  const hasLoadedInitialTimeRef = useRef(false); // Track if initialTime has been applied
+  const qualityChangeSavedTimeRef = useRef(null); // Track saved time during quality change
+  const wasPlayingBeforeQualityChangeRef = useRef(false); // Track playing state during quality change
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -142,8 +145,7 @@ const VideoPlayer = ({ hlsPath, qualities, subtitles = [], episodeId, autoPlay =
   // Get quality label
   const getQualityLabel = (quality) => {
     if (quality === 'auto') {
-      const maxQuality = getMaxAllowedQuality();
-      return `Auto (${maxQuality})`;
+      return 'Auto'; // Simple "Auto" without showing quality
     }
     return quality;
   };
@@ -170,8 +172,6 @@ const VideoPlayer = ({ hlsPath, qualities, subtitles = [], episodeId, autoPlay =
 
   // Get appropriate HLS source based on user tier
   const getAppropriateSource = () => {
-    const maxQuality = getMaxAllowedQuality();
-    
     // If selecting specific quality, use that if allowed
     if (currentQuality !== 'auto') {
       const qualityFile = qualities.find(q => q.quality === currentQuality)?.file;
@@ -180,13 +180,8 @@ const VideoPlayer = ({ hlsPath, qualities, subtitles = [], episodeId, autoPlay =
       }
     }
 
-    // For auto, use max allowed quality
-    const targetQuality = qualities.find(q => q.quality === maxQuality);
-    if (targetQuality) {
-      return `${import.meta.env.VITE_API_URL}/${targetQuality.file}`;
-    }
-
-    // Fallback to master playlist
+    // For auto mode, use MASTER PLAYLIST for adaptive bitrate
+    // HLS.js will automatically select quality based on bandwidth
     return `${import.meta.env.VITE_API_URL}/${hlsPath}`;
   };
 
@@ -214,7 +209,21 @@ const VideoPlayer = ({ hlsPath, qualities, subtitles = [], episodeId, autoPlay =
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        backBufferLength: 90
+        backBufferLength: 90,
+        // ABR (Adaptive Bitrate) Configuration
+        abrEwmaDefaultEstimate: 1500000, // Start with 1.5 Mbps (cao hơn để test bandwidth)
+        abrEwmaFastLive: 3.0,
+        abrEwmaSlowLive: 9.0,
+        abrMaxWithRealBitrate: true, // Dùng real bitrate để đánh giá
+        // Bandwidth estimation - Bảo thủ hơn khi switch lên 1080p
+        abrBandWidthFactor: 0.85, // Tăng từ 0.8 lên 0.85 - cần bandwidth cao hơn để lên 1080p
+        abrBandWidthUpFactor: 0.75, // Tăng từ 0.7 - khó switch lên hơn
+        // Start from lowest quality
+        startLevel: -1, // -1 = auto, will start from lowest (480p)
+        capLevelToPlayerSize: false, // Cho phép quality cao hơn kích thước player
+        maxMaxBufferLength: 30,
+        // Chỉ switch lên quality cao hơn khi có buffer đủ
+        minAutoBitrate: 0 // Cho phép xuống thấp nhất có thể
       });
 
       hlsRef.current = hls;
@@ -226,14 +235,62 @@ const VideoPlayer = ({ hlsPath, qualities, subtitles = [], episodeId, autoPlay =
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         const loadTime = performance.now() - startTime;
         console.log(`✅ [VideoPlayer] HLS manifest loaded in ${loadTime.toFixed(2)}ms`);
-        clearTimeout(bufferingTimeout); // Clear timeout
-        setIsBuffering(false); // Stop buffering
-        if (initialTime > 0) {
-          video.currentTime = initialTime;
+        console.log(`📊 Available quality levels: ${hls.levels.map(l => `${l.height}p`).join(', ')}`);
+        
+        clearTimeout(bufferingTimeout);
+        setIsBuffering(false);
+        
+        // Priority 1: If this is a quality change, use saved time from quality change
+        if (qualityChangeSavedTimeRef.current !== null) {
+          video.currentTime = qualityChangeSavedTimeRef.current;
+          console.log(`🔄 [QUALITY CHANGE] Restored to ${qualityChangeSavedTimeRef.current.toFixed(2)}s`);
+          
+          // Auto-play if was playing before quality change
+          if (wasPlayingBeforeQualityChangeRef.current) {
+            video.play().catch(err => console.log('Play after quality change prevented:', err));
+            console.log(`▶️ [QUALITY CHANGE] Resumed playback`);
+          }
+          
+          // Clear refs after use
+          qualityChangeSavedTimeRef.current = null;
+          wasPlayingBeforeQualityChangeRef.current = false;
         }
-        if (autoPlay) {
+        // Priority 2: Only apply initialTime on FIRST load
+        else if (initialTime > 0 && !hasLoadedInitialTimeRef.current) {
+          video.currentTime = initialTime;
+          hasLoadedInitialTimeRef.current = true;
+          console.log(`⏩ Applied initial time from watch history: ${initialTime.toFixed(2)}s`);
+        }
+        
+        if (autoPlay && !qualityChangeSavedTimeRef.current) {
           video.play().catch(err => console.log('Autoplay prevented:', err));
         }
+      });
+
+      // Handle quality level switching
+      hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+        const currentLevel = hls.levels[data.level];
+        console.log(`🔄 Quality switched to: ${currentLevel.height}p (${Math.round(currentLevel.bitrate / 1000)} Kbps)`);
+      });
+
+      // Handle buffering events
+      hls.on(Hls.Events.BUFFER_APPENDING, () => {
+        setIsBuffering(false); // Data is being appended, stop showing spinner
+      });
+
+      // Show spinner when waiting for data
+      video.addEventListener('waiting', () => {
+        console.log('⏳ Video waiting for data...');
+        setIsBuffering(true);
+      });
+
+      video.addEventListener('playing', () => {
+        console.log('▶️ Video playing');
+        setIsBuffering(false);
+      });
+
+      video.addEventListener('canplay', () => {
+        setIsBuffering(false);
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
@@ -248,6 +305,12 @@ const VideoPlayer = ({ hlsPath, qualities, subtitles = [], episodeId, autoPlay =
       return () => {
         console.log('🧹 [VideoPlayer] Cleaning up HLS...');
         clearTimeout(bufferingTimeout);
+        
+        // Remove event listeners
+        video.removeEventListener('waiting', () => setIsBuffering(true));
+        video.removeEventListener('playing', () => setIsBuffering(false));
+        video.removeEventListener('canplay', () => setIsBuffering(false));
+        
         hls.destroy();
       };
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -628,18 +691,20 @@ const VideoPlayer = ({ hlsPath, qualities, subtitles = [], episodeId, autoPlay =
       return;
     }
 
-    // Quality is allowed, change it
-    setCurrentQuality(quality);
+    // Save CURRENT playback position and playing state to refs
     const savedTime = video.currentTime;
+    const wasPlaying = !video.paused;
+    
+    console.log(`🔄 [QUALITY CHANGE] Switching to ${quality}`);
+    console.log(`   Saving position: ${savedTime.toFixed(2)}s`);
+    console.log(`   Was playing: ${wasPlaying}`);
+    
+    // Store in refs so MANIFEST_PARSED event can use them
+    qualityChangeSavedTimeRef.current = savedTime;
+    wasPlayingBeforeQualityChangeRef.current = wasPlaying;
 
-    if (hlsRef.current) {
-      const newSource = quality === 'auto' 
-        ? getAppropriateSource()
-        : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/${qualities.find(q => q.quality === quality)?.file}`;
-      
-      hlsRef.current.loadSource(newSource);
-      video.currentTime = savedTime;
-    }
+    // Change quality (will trigger useEffect to reload HLS)
+    setCurrentQuality(quality);
 
     setShowSettings(false);
     setSettingsTab(null);
@@ -721,10 +786,17 @@ const VideoPlayer = ({ hlsPath, qualities, subtitles = [], episodeId, autoPlay =
 
         {/* BUFFERING OVERLAY */}
         {isBuffering && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-50">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50 pointer-events-none">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mx-auto mb-4"></div>
-              <p className="text-white text-lg font-medium">Loading video...</p>
+              <div className="relative">
+                {/* Outer spinning ring */}
+                <div className="animate-spin rounded-full h-20 w-20 border-4 border-transparent border-t-red-600 border-r-red-600 mx-auto"></div>
+                {/* Inner pulsing circle */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="animate-pulse rounded-full h-12 w-12 bg-red-600/30"></div>
+                </div>
+              </div>
+              <p className="text-white text-base font-medium mt-4 animate-pulse">Loading...</p>
             </div>
           </div>
         )}
