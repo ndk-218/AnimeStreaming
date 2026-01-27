@@ -132,16 +132,22 @@ class SeriesController {
             // Process and save banner image
             const bannerPath = await ImageService.processSeriesBanner(
               req.file.path,
-              result.data._id
+              result.data._id.toString() // Convert ObjectId to string
             );
+            
+            console.log(`📍 Banner path from ImageService: "${bannerPath}"`);
             
             // Update series with banner path
             const updatedSeries = await Series.findById(result.data._id);
             updatedSeries.bannerImage = bannerPath;
             await updatedSeries.save();
             
-            result.data.bannerImage = bannerPath;
+            console.log(`💾 Saved to database: "${updatedSeries.bannerImage}"`);
+            
+            // Re-query series to get complete data with banner
+            result.data = await Series.findById(result.data._id).lean();
             console.log(`✅ Banner uploaded successfully: ${bannerPath}`);
+            console.log(`📋 Final result.data.bannerImage: "${result.data.bannerImage}"`);
           }
         } catch (bannerError) {
           console.error('❌ Banner upload error (non-fatal):', bannerError.message);

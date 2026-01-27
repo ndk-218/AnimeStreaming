@@ -88,6 +88,9 @@ const createSeason = async (req, res) => {
 
     const season = await SeasonService.createSeason(seasonData);
 
+    // Populate seriesId to get series title for notification
+    await season.populate('seriesId', 'title');
+
     res.status(201).json({
       success: true,
       data: season,
@@ -199,6 +202,9 @@ const updateSeason = async (req, res) => {
         error: 'Season not found'
       });
     }
+
+    // Populate seriesId to get series title for notification
+    await season.populate('seriesId', 'title');
 
     res.json({
       success: true,

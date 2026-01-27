@@ -147,9 +147,9 @@ function EnhancedSeasonSelection({ uploadData, setUploadData, prefetchedSeasons,
         if (posterFile) {
           try {
             const formData = new FormData()
-            formData.append('poster', posterFile)
+            formData.append('imageFile', posterFile) // Match backend field name
             
-            const posterResponse = await api.post(
+            const posterResponse = await api.put( // PUT instead of POST
               `/admin/seasons/${createdSeason._id}/poster`,
               formData,
               {

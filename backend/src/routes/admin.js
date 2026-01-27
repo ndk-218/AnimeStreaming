@@ -147,12 +147,9 @@ router.post('/users',
 
 // Series Management
 router.post('/series',
-  (req, res, next) => {
-    console.log('🎯 POST /api/admin/series hit');
-    console.log('   Body:', req.body);
-    next();
-  },
   adminAuth,
+  uploadSingleImage, // Thêm middleware để xử lý FormData + file upload
+  handleUploadError,
   catchAsync(seriesController.createSeries.bind(seriesController))
 );
 

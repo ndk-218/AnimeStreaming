@@ -9,7 +9,8 @@ class GeminiService {
   constructor() {
     this.initialized = false;
     this.apiKey = null;
-    this.model = 'gemini-2.5-flash';
+    // Use stable Gemini 1.5 Flash model (recommended)
+    this.model = 'gemini-2.5-flash'; // Stable production version
     this.endpoint = null;
     
     // Generation settings
@@ -69,7 +70,7 @@ Hỏi CỤ THỂ ("cho biết về..."):
       throw new Error('GEMINI_API_KEY is not defined in environment variables');
     }
     
-    // Set endpoint
+    // Set endpoint - Use v1beta API for gemini-2.5-flash
     this.endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
     
     this.initialized = true;
