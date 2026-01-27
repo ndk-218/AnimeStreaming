@@ -660,7 +660,9 @@ const advancedSearchSeasons = async (req, res) => {
     const {
       seasonTypes,  // "tv,movie,ova" -> ['tv', 'movie', 'ova']
       genres,       // "Action,Adventure" -> ['Action', 'Adventure']
+      excludeGenres, // "Drama,Horror" -> ['Drama', 'Horror']
       studios,      // "Mappa,Toei" -> ['Mappa', 'Toei']
+      excludeStudios, // "A-1,Bones" -> ['A-1', 'Bones']
       yearStart,
       yearEnd,
       excludeYears, // "2022,2024" -> ['2022', '2024']
@@ -673,7 +675,9 @@ const advancedSearchSeasons = async (req, res) => {
     const filters = {
       seasonTypes: seasonTypes ? seasonTypes.split(',').map(s => s.trim()) : [],
       genres: genres ? genres.split(',').map(g => g.trim()) : [],
+      excludeGenres: excludeGenres ? excludeGenres.split(',').map(g => g.trim()) : [],
       studios: studios ? studios.split(',').map(s => s.trim()) : [],
+      excludeStudios: excludeStudios ? excludeStudios.split(',').map(s => s.trim()) : [],
       yearStart: yearStart ? parseInt(yearStart) : null,
       yearEnd: yearEnd ? parseInt(yearEnd) : null,
       excludeYears: excludeYears ? excludeYears.split(',').map(y => y.trim()) : [],

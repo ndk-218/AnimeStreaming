@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import AdminHeader from '../../components/admin/AdminHeader'
-import { Upload, Bell } from 'lucide-react'
+import { Upload, Bell, Users } from 'lucide-react'
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
@@ -66,6 +66,17 @@ export default function AdminDashboard() {
             </button>
           </div>
 
+        </div>
+
+        {/* Small Navigation Button - User Management */}
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={() => navigate('/admin/users')}
+            className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-medium rounded-lg shadow-md hover:shadow-lg hover:from-purple-600 hover:to-blue-600 transition-all"
+          >
+            <Users className="w-5 h-5" />
+            <span>Danh sách thành viên</span>
+          </button>
         </div>
       </div>
     </div>

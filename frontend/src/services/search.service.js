@@ -12,7 +12,9 @@ class SearchService {
       const {
         seasonTypes = [],
         genres = [],
+        excludeGenres = [],      // NEW
         studios = [],
+        excludeStudios = [],     // NEW
         yearStart = null,
         yearEnd = null,
         excludeYears = [],
@@ -20,6 +22,13 @@ class SearchService {
         page = 1,
         limit = 24
       } = filters;
+
+      // Debug log
+      console.log('📤 [SearchService] Sending request with filters:');
+      console.log('   genres (include):', genres);
+      console.log('   excludeGenres:', excludeGenres);
+      console.log('   studios (include):', studios);
+      console.log('   excludeStudios:', excludeStudios);
 
       // Build query params
       const params = new URLSearchParams();
@@ -32,8 +41,16 @@ class SearchService {
         params.append('genres', genres.join(','));
       }
       
+      if (excludeGenres.length > 0) {
+        params.append('excludeGenres', excludeGenres.join(','));
+      }
+      
       if (studios.length > 0) {
         params.append('studios', studios.join(','));
+      }
+      
+      if (excludeStudios.length > 0) {
+        params.append('excludeStudios', excludeStudios.join(','));
       }
       
       if (yearStart) {
@@ -54,9 +71,10 @@ class SearchService {
       params.append('page', page);
       params.append('limit', limit);
 
-      const response = await axios.get(
-        `${API_URL}/seasons/advanced-search?${params.toString()}`
-      );
+      const url = `${API_URL}/seasons/advanced-search?${params.toString()}`;
+      console.log('🌐 [SearchService] Request URL:', url);
+
+      const response = await axios.get(url);
 
       return response.data;
     } catch (error) {

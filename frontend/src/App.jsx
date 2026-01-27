@@ -4,6 +4,7 @@ import './index.css'
 import AdminLogin from './pages/admin/AdminLogin'
 import UploadCenter from './pages/admin/UploadCenter'
 import AdminNotifications from './pages/admin/AdminNotifications'
+import AdminUsers from './pages/admin/AdminUsers'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import WatchPage from './pages/WatchPage'
 import HomePage from './pages/HomePage'
@@ -146,6 +147,11 @@ function App() {
 
   // ===== ADMIN PAGES COMPONENT =====
   const AdminPages = () => {
+    // Check auth on every render
+    const token = localStorage.getItem('admin-token');
+    const adminUser = localStorage.getItem('admin-user');
+    const hasAuth = token && adminUser;
+    
     if (loading) {
       return (
         <div className="min-h-screen bg-light-50 text-light-900 flex items-center justify-center">
@@ -158,7 +164,7 @@ function App() {
     }
 
     // Show login form if not authenticated
-    if (!isAuthenticated) {
+    if (!hasAuth) {
       return <AdminLogin onLoginSuccess={handleLoginSuccess} />
     }
 
@@ -168,6 +174,7 @@ function App() {
         <Route path="/" element={<AdminDashboard />} />
         <Route path="/upload" element={<UploadCenter />} />
         <Route path="/noti" element={<AdminNotifications />} />
+        <Route path="/users" element={<AdminUsers />} />
       </Routes>
     )
   }

@@ -141,6 +141,46 @@ router.post('/users',
   catchAsync(createAdmin)
 );
 
+// Get all users with pagination
+// GET /api/admin/users?page=1&limit=18
+router.get('/users',
+  adminAuth,
+  catchAsync(async (req, res) => {
+    try {
+      const { page = 1, limit = 18 } = req.query;
+      const User = require('../models/User');
+      
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      
+      const [users, total] = await Promise.all([
+        User.find()
+          .select('displayName avatar role createdAt')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(parseInt(limit))
+          .lean(),
+        User.countDocuments()
+      ]);
+      
+      res.json({
+        success: true,
+        data: {
+          users,
+          totalPages: Math.ceil(total / parseInt(limit)),
+          currentPage: parseInt(page),
+          total
+        }
+      });
+    } catch (error) {
+      console.error('Get users error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch users'
+      });
+    }
+  })
+);
+
 /**
  * ===== CONTENT MANAGEMENT ROUTES (CRUD) =====
  */

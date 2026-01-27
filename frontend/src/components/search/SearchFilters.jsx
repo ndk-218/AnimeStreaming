@@ -224,6 +224,13 @@ const SearchFilters = ({ onSearch, onClose, initialFilters = null }) => {
       filters.yearEnd = selectedYear;
     }
 
+    // Debug log
+    console.log('🔍 [SearchFilters] Building filters:');
+    console.log('   genres (include):', filters.genres);
+    console.log('   excludeGenres:', filters.excludeGenres);
+    console.log('   studios (include):', filters.studios);
+    console.log('   excludeStudios:', filters.excludeStudios);
+
     return filters;
   };
 
